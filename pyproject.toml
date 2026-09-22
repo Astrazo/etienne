@@ -7,7 +7,11 @@ authors = [
     { name = "Astrazo", email = "joshua.richardson@outlook.com.au" }
 ]
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "dotenv>=0.9.9",
+    "requests>=2.34.2",
+    "typer>=0.27.2",
+]
 
 [project.scripts]
 etienne = "etienne:main"
