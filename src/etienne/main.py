@@ -8,6 +8,7 @@ from .home import Home
 from .integrations import (
     HomeAssistantClient,
     SpotifyClient,
+    ADBClient
 )
 
 load_dotenv()
@@ -15,6 +16,8 @@ load_dotenv()
 
 HOME_ASSISTANT_URL = "http://homeassistant.local"
 HOME_ASSISTANT_TOKEN = os.getenv("HA_TOKEN")
+LIVING_ROOM_TV_IP = os.getenv("LIVING_ROOM_TV_IP")
+PLATFORM_TOOLS_PATH = os.getenv("PLATFORM_TOOLS_PATH")
 
 SPOTIFY_CLIENT = Spotify(
     auth_manager=SpotifyOAuth(
@@ -31,7 +34,8 @@ SPOTIFY_CLIENT = Spotify(
 
 ha_client = HomeAssistantClient(HOME_ASSISTANT_URL, HOME_ASSISTANT_TOKEN)
 spotify_client = SpotifyClient(SPOTIFY_CLIENT)
+adb_client_living_room = ADBClient(LIVING_ROOM_TV_IP)
 
-home = Home(ha_client, spotify_client)
+home = Home(ha_client, spotify_client, adb_client_living_room)
 
 app = init_app(home)

@@ -1,5 +1,5 @@
-from .devices import Light, Speaker
-from .integrations import HomeAssistantClient, SpotifyClient
+from .devices import Light, Speaker, TV
+from .integrations import HomeAssistantClient, SpotifyClient, ADBClient
 
 
 class Home:
@@ -7,16 +7,24 @@ class Home:
         self,
         ha_client: HomeAssistantClient,
         spotify_client: SpotifyClient,
+        adb_client_living_room: ADBClient
     ):
         self.ha_client = ha_client
         self.spotify_client = spotify_client
+        self.adb_client_living_room = adb_client_living_room
 
         self.lights: dict[str, Light] = {}
         self.speakers: dict[str, Speaker] = {}
+        self.tvs: dict[str, TV] = {}
 
     async def initialise(self):
+        # Connect to Tvs via all adb clients
+        await self.adb_client_living_room.connect()
+        
+        # Build Etienne owned objects
         self._init_lights()
         self._init_speakers()
+        self._init_tvs()
         
 
     def _init_lights(self):
@@ -57,5 +65,17 @@ class Home:
             spotify_client=self.spotify_client
         )
 
+        self.speakers["living_room"] = Speaker(
+            name="living_room",
+            spotify_id="c2f34440bf4982af8a18286dcf308c48dfb7b416",
+            spotify_client=self.spotify_client
+        )
+
+    def _init_tvs(self):
+        self.tvs["living_room"] = TV(
+            "living_room",
+            adb_client=self.adb_client_living_room
+        )
+    
     async def close(self) -> None:
         await self.ha_client.close()

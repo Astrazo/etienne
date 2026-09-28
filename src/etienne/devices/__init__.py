@@ -2,8 +2,10 @@
 """
 from .light import Light
 from .speaker import Speaker
+from .tv import TV
 
 __all__ = [
     "Light",
-    "Speaker"
+    "Speaker",
+    "TV"
 ]

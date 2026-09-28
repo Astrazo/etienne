@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Request
+from ...devices import TV
+from ...home import Home
 
 tv_router = APIRouter(
     prefix="/tvs",
@@ -6,46 +8,33 @@ tv_router = APIRouter(
 )
 
 
-@tv_router.post("/{name}/on")
-async def turn_on(
+@tv_router.post("/{name}/{app}/open")
+async def open_app(
     name: str,
+    app: str,
     request: Request,
 ):
-    # Use the request object to access home object
-    home = request.app.state.home
+    home: Home = request.app.state.home
+    tv: TV = home.tvs[name]
 
-    # TODO We need to determine between individual lights and rooms
-    if name == "living_room":
-        for i in range(1, 4):
-            # Grab the light and turn it on
-            light = home.lights[f"{name}_{i}"]
-            await light.turn_on()
-    else:
-        # Grab the light and turn it on
-        light = home.lights[name]
-        await light.turn_on()
+    await tv.open_app(app)
 
-    # We always work 
     return {"status": "ok"}
 
-@tv_router.post("/{name}/off")
-async def turn_off(
+
+@tv_router.post("/{name}/{app}/shows/{show}/play")
+async def play_show(
     name: str,
+    app: str,
+    show: str,
     request: Request,
 ):
-    # Use the request object to access home object
-    home = request.app.state.home
+    home: Home = request.app.state.home
+    tv: TV = home.tvs[name]
 
-    # TODO We need to determine between individual lights and rooms
-    if name == "living_room":
-        for i in range(1, 4):
-            # Grab the light and turn it on
-            light = home.lights[f"{name}_{i}"]
-            await light.turn_off()
-    else:
-        # Grab the light and turn it on
-        light = home.lights[name]
-        await light.turn_off()
+    await tv.play_show(
+        app=app,
+        show=show,
+    )
 
-    # We always work 
     return {"status": "ok"}

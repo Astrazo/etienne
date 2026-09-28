@@ -8,6 +8,7 @@ authors = [
 ]
 requires-python = ">=3.14"
 dependencies = [
+    "adb-shell[async]>=0.4.4",
     "dotenv>=0.9.9",
     "fastapi>=0.141.1",
     "httpx>=0.28.1",
