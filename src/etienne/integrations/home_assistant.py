@@ -11,6 +11,14 @@ class HomeAssistantClient:
         )
 
     async def get_state(self, entity_id: str) -> dict:
+        """Get the state of a device.
+
+        Args:
+            entity_id (str): _description_
+
+        Returns:
+            dict: _description_
+        """
         response = await self.client.get(
             f"/api/states/{entity_id}"
         )
@@ -23,6 +31,13 @@ class HomeAssistantClient:
         service: str,
         data: dict,
     ):
+        """Call a service through HA.
+
+        Args:
+            domain (str): _description_
+            service (str): _description_
+            data (dict): _description_
+        """
         response = await self.client.post(
             f"/api/services/{domain}/{service}",
             json=data,

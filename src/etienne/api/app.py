@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from ..home import Home
-from .routes.lights import router as lights_router
+from .routes import lights_router, tv_router, speaker_router
 
 
 def init_app(home: Home) -> FastAPI:
@@ -26,5 +26,8 @@ def init_app(home: Home) -> FastAPI:
     app = FastAPI(lifespan=lifespan)
 
     app.include_router(lights_router)
+    app.include_router(tv_router)
+    app.include_router(speaker_router)
+    
 
     return app

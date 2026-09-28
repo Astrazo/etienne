@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Request
 
-router = APIRouter(
+lights_router = APIRouter(
     prefix="/lights",
-    tags=["lights"],
+    tags=["Lights"],
 )
 
 
-@router.post("/{name}/on")
+@lights_router.post("/{name}/on")
 async def turn_on(
     name: str,
     request: Request,
@@ -28,7 +28,7 @@ async def turn_on(
     # We always work 
     return {"status": "ok"}
 
-@router.post("/{name}/off")
+@lights_router.post("/{name}/off")
 async def turn_off(
     name: str,
     request: Request,
