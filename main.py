@@ -346,5 +346,6 @@ def repeat(
         device_id=spotify_device["id"],
     )
 
+
 if __name__ == "__main__":
     app()
