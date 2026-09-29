@@ -1,8 +1,8 @@
+import asyncio
+from typing import Literal
+
 from ..integrations import ADBClient, HomeAssistantClient
 from ..integrations.adb import UIElement
-from typing import Literal
-import asyncio
-
 
 TVApp = Literal[
     "disney",
@@ -18,7 +18,7 @@ class TV:
         name: str,
         adb_client: ADBClient,
         ha_entity_id: str | None = None,
-        ha_client: HomeAssistantClient | None = None
+        ha_client: HomeAssistantClient | None = None,
     ):
         self.name = name
         self.adb_client = adb_client

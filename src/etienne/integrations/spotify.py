@@ -6,28 +6,22 @@ class SpotifyClient:
     def __init__(self, spotify: spotipy.Spotify):
         self.spotify_client = spotify
 
-    def start_playback(self, device_id: str, song: str | None = None, artist: str | None = None) -> None:
+    def start_playback(
+        self, device_id: str, song: str | None = None, artist: str | None = None
+    ) -> None:
 
         # IF no track passed in, resume playback
         if song is None:
-            self.spotify_client.start_playback(
-                device_id=device_id
-            )
+            self.spotify_client.start_playback(device_id=device_id)
             return
 
         # Otherwise find track
-        track = self._find_track(
-            song=song,
-            artist=artist
-        )
+        track = self._find_track(song=song, artist=artist)
 
         if track is None:
             raise ValueError(f"Track not found: {song}")
         try:
-            self.spotify_client.start_playback(
-                device_id=device_id,
-                uris=[track["uri"]]
-            )
+            self.spotify_client.start_playback(device_id=device_id, uris=[track["uri"]])
         except SpotifyException as e:
             print(e)
 

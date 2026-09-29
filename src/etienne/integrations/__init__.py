@@ -1,11 +1,7 @@
-"""Code to handle external integrations i.e providers
-"""
+"""Code to handle external integrations i.e providers"""
+
+from .adb import ADBClient
 from .home_assistant import HomeAssistantClient
 from .spotify import SpotifyClient
-from .adb import ADBClient
 
-__all__ = [
-    "HomeAssistantClient",
-    "SpotifyClient",
-    "ADBClient"
-]
+__all__ = ["ADBClient", "HomeAssistantClient", "SpotifyClient"]

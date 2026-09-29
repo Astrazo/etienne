@@ -5,11 +5,7 @@ from spotipy import Spotify, SpotifyOAuth
 
 from .api.app import init_app
 from .home import Home
-from .integrations import (
-    HomeAssistantClient,
-    SpotifyClient,
-    ADBClient
-)
+from .integrations import ADBClient, HomeAssistantClient, SpotifyClient
 
 load_dotenv()
 
@@ -25,9 +21,7 @@ SPOTIFY_CLIENT = Spotify(
         client_secret=os.getenv("SPOTIFY_CLIENT_SECRET"),
         redirect_uri=os.getenv("SPOTIFY_REDIRECT_URI"),
         scope=(
-            "user-read-playback-state "
-            "user-modify-playback-state "
-            "playlist-read-private"
+            "user-read-playback-state user-modify-playback-state playlist-read-private"
         ),
     )
 )

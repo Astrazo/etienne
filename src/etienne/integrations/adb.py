@@ -1,6 +1,5 @@
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-
 from pathlib import Path
 
 from adb_shell.adb_device_async import AdbDeviceTcpAsync
@@ -46,9 +45,7 @@ class ADBClient:
             keygen(str(self.key_path))
 
         private_key = self.key_path.read_text()
-        public_key = Path(
-            f"{self.key_path}.pub"
-        ).read_text()
+        public_key = Path(f"{self.key_path}.pub").read_text()
 
         signer = PythonRSASigner(
             public_key,
@@ -64,25 +61,17 @@ class ADBClient:
         return await self.device.shell(command)
 
     async def send_key(self, key: str) -> None:
-        await self.shell(
-            f"input keyevent {key}"
-        )
+        await self.shell(f"input keyevent {key}")
 
     async def open_app(self, package: str) -> None:
         """Open an Android app by package name."""
-        await self.shell(
-            f"monkey -p {package} 1"
-        )
+        await self.shell(f"monkey -p {package} 1")
 
     async def get_ui_xml(self) -> str:
         """Get raw UI XML from the current screen."""
-        await self.shell(
-            "uiautomator dump /sdcard/window.xml"
-        )
+        await self.shell("uiautomator dump /sdcard/window.xml")
 
-        return await self.shell(
-            "cat /sdcard/window.xml"
-        )
+        return await self.shell("cat /sdcard/window.xml")
 
     async def get_ui(self) -> list[UIElement]:
         """Parse raw UI XML into UIElement objects."""
