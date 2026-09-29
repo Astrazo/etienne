@@ -25,8 +25,9 @@ async def turn_on(
         light = home.lights[name]
         await light.turn_on()
 
-    # We always work 
+    # We always work
     return {"status": "ok"}
+
 
 @lights_router.post("/{name}/off")
 async def turn_off(
@@ -47,5 +48,5 @@ async def turn_off(
         light = home.lights[name]
         await light.turn_off()
 
-    # We always work 
+    # We always work
     return {"status": "ok"}

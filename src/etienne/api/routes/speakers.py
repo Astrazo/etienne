@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Request
+
 from ...devices import Speaker
 from ...home import Home
 
@@ -24,6 +25,7 @@ async def play(
 
     return {"status": "ok"}
 
+
 @speaker_router.post("/{name}/pause")
 async def pause(
     name: str,
@@ -34,5 +36,5 @@ async def pause(
     speaker: Speaker = home.speakers[name]
     speaker.pause()
 
-    # We always work 
+    # We always work
     return {"status": "ok"}

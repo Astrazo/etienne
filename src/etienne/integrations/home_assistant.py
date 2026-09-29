@@ -19,9 +19,7 @@ class HomeAssistantClient:
         Returns:
             dict: _description_
         """
-        response = await self.client.get(
-            f"/api/states/{entity_id}"
-        )
+        response = await self.client.get(f"/api/states/{entity_id}")
         response.raise_for_status()
         return response.json()
 
