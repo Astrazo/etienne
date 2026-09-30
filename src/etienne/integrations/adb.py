@@ -5,6 +5,8 @@ from pathlib import Path
 from adb_shell.adb_device_async import AdbDeviceTcpAsync
 from adb_shell.auth.keygen import keygen
 from adb_shell.auth.sign_pythonrsa import PythonRSASigner
+from adb_shell.exceptions import AdbConnectionError, TcpTimeoutException
+from loguru import logger
 
 
 @dataclass
@@ -52,10 +54,13 @@ class ADBClient:
             private_key,
         )
 
-        await self.device.connect(
-            rsa_keys=[signer],
-            auth_timeout_s=10.0,
-        )
+        try:
+            await self.device.connect(
+                rsa_keys=[signer],
+                auth_timeout_s=10.0,
+            )
+        except TcpTimeoutException, AdbConnectionError:
+            logger.warning("Can't connect to TV")
 
     async def shell(self, command: str) -> str:
         return await self.device.shell(command)
