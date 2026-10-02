@@ -61,3 +61,9 @@ class Speaker:
 
     def shuffle(self, state: bool) -> None:
         self.spotify_client.set_shuffle(self.spotify_id, state)
+
+    def navigate_queue(self, direction: Literal["next", "previous"]) -> None:
+        if direction == "next":
+            self.spotify_client.play_next_track(self.spotify_id)
+        elif direction == "previous":
+            self.spotify_client.play_previous_track(self.spotify_id)
