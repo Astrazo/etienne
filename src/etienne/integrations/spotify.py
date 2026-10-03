@@ -3,6 +3,7 @@ from typing import Literal
 
 import spotipy
 from loguru import logger
+from requests.exceptions import RequestException
 from spotipy.exceptions import SpotifyException
 
 
@@ -61,6 +62,9 @@ class SpotifyClient:
                 context_uri,
             )
 
+        else:
+            logger.info("Resuming Spotify playback on device {}", device_id)
+
         try:
             self.spotify_client.start_playback(
                 device_id=device_id,
@@ -68,12 +72,13 @@ class SpotifyClient:
                 uris=track_uris,
                 offset=offset,
             )
-        except SpotifyException as error:
+        except (SpotifyException, RequestException) as error:
             logger.warning(
                 "Failed to start Spotify playback on device {}: {}",
                 device_id,
                 error,
             )
+            raise
 
     def play_tracks(self, device_id: str, tracks: list[tuple[str, str | None]]):
         track_uris: list[str] = []
@@ -97,11 +102,15 @@ class SpotifyClient:
         if artist:
             query += f' artist:"{artist}"'
 
-        results = self.spotify_client.search(
-            q=query,
-            type="track",
-            limit=1,
-        )
+        try:
+            results = self.spotify_client.search(
+                q=query,
+                type="track",
+                limit=1,
+            )
+        except (SpotifyException, RequestException) as error:
+            logger.warning("Searching for track {} failed: {}", track_name, error)
+            raise
 
         tracks = results["tracks"]["items"]
         if not tracks:
@@ -148,11 +157,15 @@ class SpotifyClient:
         if artist is not None:
             query += f' artist:"{artist}"'
 
-        results = self.spotify_client.search(
-            q=query,
-            type="album",
-            limit=10,
-        )
+        try:
+            results = self.spotify_client.search(
+                q=query,
+                type="album",
+                limit=10,
+            )
+        except (SpotifyException, RequestException) as error:
+            logger.warning("Searching for album {} failed: {}", album_name, error)
+            raise
 
         albums = results["albums"]["items"]
         if not albums:
@@ -187,11 +200,15 @@ class SpotifyClient:
         )
 
     def _find_artist(self, artist_name: str) -> dict | None:
-        results = self.spotify_client.search(
-            q=f'artist:"{artist_name}"',
-            type="artist",
-            limit=10,
-        )
+        try:
+            results = self.spotify_client.search(
+                q=f'artist:"{artist_name}"',
+                type="artist",
+                limit=10,
+            )
+        except (SpotifyException, RequestException) as error:
+            logger.warning("Searching for artist {} failed: {}", artist_name, error)
+            raise
 
         artists = results["artists"]["items"]
         if not artists:
@@ -225,7 +242,11 @@ class SpotifyClient:
         )
 
     def _find_playlist(self, name: str) -> dict | None:
-        results = self.spotify_client.current_user_playlists(limit=50)
+        try:
+            results = self.spotify_client.current_user_playlists(limit=50)
+        except (SpotifyException, RequestException) as error:
+            logger.warning("Looking up playlist {} failed: {}", name, error)
+            raise
         matches = []
 
         # Loop through results
@@ -237,7 +258,11 @@ class SpotifyClient:
             if results["next"] is None:
                 return None
 
-            results = self.spotify_client.next(results)
+            try:
+                results = self.spotify_client.next(results)
+            except (SpotifyException, RequestException) as error:
+                logger.warning("Looking up playlist {} failed: {}", name, error)
+                raise
 
         # If user has duplicate playlist names, could return multiple
         if len(matches) == 1:
@@ -250,17 +275,42 @@ class SpotifyClient:
         return None
 
     def pause_playback(self, device_id: str) -> None:
-        self.spotify_client.pause_playback(device_id=device_id)
+        logger.info("Pausing Spotify playback on device {}", device_id)
+        try:
+            self.spotify_client.pause_playback(device_id=device_id)
+        except (SpotifyException, RequestException) as error:
+            logger.warning(
+                "Failed to pause Spotify playback on device {}: {}",
+                device_id,
+                error,
+            )
+            raise
 
     def add_to_playback_queue(self, device_id: str, track_uri: str) -> None:
-        self.spotify_client.add_to_queue(track_uri, device_id)
+        logger.info("Adding track {} to queue on device {}", track_uri, device_id)
+        try:
+            self.spotify_client.add_to_queue(track_uri, device_id)
+        except (SpotifyException, RequestException) as error:
+            logger.warning(
+                "Adding to playback queue on device {} failed: {}", device_id, error
+            )
+            raise
 
     def set_repeat(self, device_id: str, state: Literal["track", "context", "off"]):
         logger.info("Setting repeat on device {}: {}", device_id, state)
-        self.spotify_client.repeat(state, device_id=device_id)
+        try:
+            self.spotify_client.repeat(state, device_id=device_id)
+        except (SpotifyException, RequestException) as error:
+            logger.warning("Setting repeat on device {} failed: {}", device_id, error)
+            raise
 
     def set_shuffle(self, device_id: str, state: bool) -> None:
-        self.spotify_client.shuffle(state=state, device_id=device_id)
+        logger.info("Setting shuffle on device {}: {}", device_id, state)
+        try:
+            self.spotify_client.shuffle(state=state, device_id=device_id)
+        except (SpotifyException, RequestException) as error:
+            logger.warning("Setting shuffle on device {} failed: {}", device_id, error)
+            raise
 
     def play_next_track(self, device_id: str) -> None:
         """Play next track.  Overwrites any track repeat setting.
@@ -269,7 +319,13 @@ class SpotifyClient:
             device_id (str): _description_
         """
         logger.info("Playing next track on device {}", device_id)
-        self.spotify_client.next_track(device_id)
+        try:
+            self.spotify_client.next_track(device_id)
+        except (SpotifyException, RequestException) as error:
+            logger.warning(
+                "Playing next track on device {} failed: {}", device_id, error
+            )
+            raise
 
     def play_previous_track(self, device_id: str) -> None:
         """Play previous track.  Overwrites any track repeat setting.
@@ -278,7 +334,13 @@ class SpotifyClient:
             device_id (str): _description_
         """
         logger.info("Playing previous track on device {}", device_id)
-        self.spotify_client.previous_track(device_id)
+        try:
+            self.spotify_client.previous_track(device_id)
+        except (SpotifyException, RequestException) as error:
+            logger.warning(
+                "Playing previous track on device {} failed: {}", device_id, error
+            )
+            raise
 
     def _normalise_name(self, value: str) -> str:
         value = unicodedata.normalize("NFKD", value)
@@ -289,7 +351,11 @@ class SpotifyClient:
 
     # Not currently used
     def _find_device(self, device_id: str) -> dict | None:
-        devices = self.spotify.devices()["devices"]
+        try:
+            devices = self.spotify_client.devices()["devices"]
+        except (SpotifyException, RequestException) as error:
+            logger.warning("Looking up device {} failed: {}", device_id, error)
+            raise
 
         for device in devices:
             if device["id"] == device_id:

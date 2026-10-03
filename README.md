@@ -1,28 +1,28 @@
 # Etienne
 
-## Timer storage
+## Scheduling
 
-SQLite support comes with Python; no extra dependency or database server is needed.
-FastAPI's lifespan handler calls `init_db()` from `src/etienne/db.py` before
-initialising devices. It creates `data/etienne.db` relative to the working directory
-and runs `CREATE TABLE IF NOT EXISTS timers`, preserving existing rows on restart.
-Set `ETIENNE_DB_PATH` in `.env` to use another location. Use an absolute path when
-running as a service so changing the working directory cannot select another database.
+Startup creates missing tables in `data/etienne.db`. The `speaker_timers` table
+stores `id` (automatically assigned), `device_id` (Spotify ID), `action` (`pause`
+or `resume`), and `execute_at` (UTC Unix timestamp). Each new sleep timer adds a
+row; it does not replace existing timers.
 
-The `timers` table holds pending speaker pause timers:
+`scheduler.py` checks immediately on startup, then sleeps for 60 seconds between
+checks. It executes due actions sequentially in deadline order, including timers
+that expired while the server was offline. Successful timers are deleted; failed
+actions and unknown devices are logged and retained for retry on the next check.
+One failed timer does not stop the others.
 
-| Column | Meaning |
-| --- | --- |
-| `device_id` | Unique device identifier; one timer per device |
-| `pause_at` | UTC Unix timestamp in seconds, such as `datetime.now(UTC).timestamp() + 1800` |
+`api/app.py` starts the async scheduler after device initialization and cancels
+and awaits it on shutdown. SQLite and synchronous Spotify calls use worker
+threads. Cancellation cannot stop a synchronous call already running in a thread.
+A crash after an action succeeds but before its row is deleted can cause the
+action to repeat on restart.
 
-Completed or cancelled timers should be deleted. Timer execution and API endpoints
-are not implemented yet; creating the table alone does not restore or run timers.
-The resolved database path is available as `request.app.state.db_path`.
+Run one app worker/process so only one scheduler owns the database. Actions can
+be late by roughly a minute plus the time spent on earlier actions. Future table
+handlers, such as TV scheduling, can be added to the same `run_scheduler` loop,
+each with its own error boundary.
 
-Keep database setup in `db.py`. As timer functionality is added, put parameterised
-SQL for saving/loading/deleting timers in `repositories/timers.py`, async countdown
-and cancellation logic in `services/timers.py`, and HTTP handlers in `api/routes/`.
-The lifespan handler wires these pieces together. There is no need for an ORM at
-this size. Future schema changes need migrations: `CREATE TABLE IF NOT EXISTS`
-does not modify an existing table.
+`CREATE TABLE IF NOT EXISTS` does not migrate existing tables. Old `timers` and
+`speaker_sleep_timers` rows are not read or migrated by this scheduler.

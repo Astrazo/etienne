@@ -20,9 +20,11 @@ def init_db(path: str | Path | None = None) -> Path:
         # Speaker timer table
         connection.execute(
             """
-            CREATE TABLE IF NOT EXISTS speaker_sleep_timers (
-                device_id TEXT PRIMARY KEY NOT NULL,
-                pause_at REAL NOT NULL CHECK (pause_at >= 0)
+            CREATE TABLE IF NOT EXISTS speaker_timers (
+                id INTEGER PRIMARY KEY,
+                device_id TEXT NOT NULL,
+                action TEXT NOT NULL CHECK (action IN ('pause', 'resume')),
+                execute_at REAL NOT NULL CHECK (execute_at >= 0)
             )
             """
         )
