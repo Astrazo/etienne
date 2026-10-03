@@ -1,3 +1,4 @@
+import asyncio
 from typing import Literal
 
 from etienne.integrations import HomeAssistantClient, SpotifyClient
@@ -18,52 +19,66 @@ class Speaker:
         self.spotify_id = spotify_id
         self.spotify_client = spotify_client
 
-    def play_tracks(
+    async def play_tracks(
         self,
         tracks: list[tuple[str, str | None]],
     ) -> None:
-        self.spotify_client.play_tracks(
+        await asyncio.to_thread(
+            self.spotify_client.play_tracks,
             self.spotify_id,
             tracks,
         )
 
-    def play_album(
+    async def play_album(
         self,
         album_name: str,
         artist_name: str | None = None,
     ) -> None:
-        self.spotify_client.play_album(
-            self.spotify_id,
-            album_name,
-            artist_name,
-        )
+        await asyncio.to_thread(self.spotify_client.play_album, album_name, artist_name)
 
-    def play_artist(self, artist_name: str) -> None:
-        self.spotify_client.play_artist(
+    async def play_artist(self, artist_name: str) -> None:
+        await asyncio.to_thread(
+            self.spotify_client.play_artist,
             self.spotify_id,
             artist_name,
         )
 
-    def play_playlist(self, playlist_name: str) -> None:
-        self.spotify_client.play_playlist(
-            self.spotify_id,
-            playlist_name,
+    async def play_playlist(self, playlist_name: str) -> None:
+        await asyncio.to_thread(
+            self.spotify_client.play_playlist, self.spotify_id, playlist_name
         )
 
-    def resume(self) -> None:
-        self.spotify_client.start_playback(self.spotify_id)
+    async def resume(self) -> None:
+        await asyncio.to_thread(
+            self.spotify_client.start_playback,
+            self.spotify_id,
+        )
 
-    def pause(self) -> None:
-        self.spotify_client.pause_playback(self.spotify_id)
+    async def pause(self) -> None:
+        await asyncio.to_thread(self.spotify_client.pause_playback, self.spotify_id)
 
-    def repeat(self, state: Literal["track", "context", "off"]) -> None:
-        self.spotify_client.set_repeat(self.spotify_id, state)
+    async def repeat(self, state: Literal["track", "context", "off"]) -> None:
+        await asyncio.to_thread(
+            self.spotify_client.set_repeat,
+            self.spotify_id,
+            state,
+        )
 
-    def shuffle(self, state: bool) -> None:
-        self.spotify_client.set_shuffle(self.spotify_id, state)
+    async def shuffle(self, state: bool) -> None:
+        await asyncio.to_thread(
+            self.spotify_client.set_shuffle,
+            self.spotify_id,
+            state,
+        )
 
-    def navigate_queue(self, direction: Literal["next", "previous"]) -> None:
+    async def navigate_queue(self, direction: Literal["next", "previous"]) -> None:
         if direction == "next":
-            self.spotify_client.play_next_track(self.spotify_id)
+            await asyncio.to_thread(
+                self.spotify_client.play_next_track,
+                self.spotify_id,
+            )
         elif direction == "previous":
-            self.spotify_client.play_previous_track(self.spotify_id)
+            await asyncio.to_thread(
+                self.spotify_client.play_previous_track,
+                self.spotify_id,
+            )

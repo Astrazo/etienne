@@ -28,7 +28,7 @@ async def play_tracks(
 
     tracks = [(track.song, track.artist) for track in tracks_input]
 
-    speaker.play_tracks(tracks)
+    await speaker.play_tracks(tracks)
 
     return {"status": "ok"}
 
@@ -81,17 +81,18 @@ async def pause(
     # Use the request object to access home object
     home: Home = request.app.state.home
     speaker: Speaker = home.speakers[name]
-    speaker.pause()
+    await speaker.pause()
 
     # We always work
     return {"status": "ok"}
+
 
 @speaker_router.post("/{name}/resume")
 async def resume(name: str, request: Request):
     home: Home = request.app.state.home
     speaker: Speaker = home.speakers[name]
 
-    speaker.resume()
+    await speaker.resume()
 
     return {"status": "ok"}
 
@@ -105,7 +106,7 @@ async def repeat(
     # Use the request object to access home object
     home: Home = request.app.state.home
     speaker: Speaker = home.speakers[name]
-    speaker.repeat(state=state)
+    await speaker.repeat(state=state)
 
     # We always work
     return {"status": "ok"}
@@ -116,7 +117,7 @@ async def shuffle(name: str, request: Request, state: bool):
     # Use the request object to access home object
     home: Home = request.app.state.home
     speaker: Speaker = home.speakers[name]
-    speaker.shuffle(state=state)
+    await speaker.shuffle(state=state)
 
     # We always work
     return {"status": "ok"}
@@ -129,7 +130,7 @@ async def navigate_queue(
     # Use the request object to access home object
     home: Home = request.app.state.home
     speaker: Speaker = home.speakers[name]
-    speaker.navigate_queue(direction)
+    await speaker.navigate_queue(direction)
 
     # We always work
     return {"status": "ok"}

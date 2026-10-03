@@ -17,3 +17,10 @@ wheels/
 
 # adb keys
 .adb/
+
+# Local SQLite data (including journal files)
+/data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm

@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from ..db import init_db
 from ..home import Home
 from .routes import lights_router, speaker_router, tv_router
 
@@ -12,6 +13,9 @@ def init_app(home: Home) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+
+        # Init DB and set path
+        app.state.db_path = init_db()
 
         # Init home
         await home.initialise()

@@ -75,7 +75,7 @@ class SpotifyClient:
                 error,
             )
 
-    def play_tracks(self, device_id: str, tracks: list[tuple[str, str]]):
+    def play_tracks(self, device_id: str, tracks: list[tuple[str, str | None]]):
         track_uris: list[str] = []
         if tracks:
             for name, artist in tracks:
