@@ -27,3 +27,4 @@ wheels/
 
 # local only
 DEV_NOTES.md
+/src/etienne/jevos/package/

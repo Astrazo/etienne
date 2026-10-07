@@ -14,6 +14,7 @@ dependencies = [
     "httpx>=0.28.1",
     "import-linter[ui]>=2.15",
     "ipykernel>=7.4.0",
+    "laya>=0.4.0",
     "loguru>=0.7.3",
     "pydantic>=2.13.5",
     "requests>=2.34.2",
