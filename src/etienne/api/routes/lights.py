@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Request
+
 from ...devices import Light
 
 lights_router = APIRouter(
