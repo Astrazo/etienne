@@ -27,8 +27,8 @@ class Home:
         self._init_tvs()
 
     def _init_lights(self):
-        self.lights["office"] = Light(
-            name="office",
+        self.lights["josh_office"] = Light(
+            name="josh_office",
             ha_entity_id="light.josh_office",
             ha_client=self.ha_client,
         )

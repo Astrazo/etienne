@@ -82,15 +82,30 @@ class SpotifyClient:
 
     def play_tracks(self, device_id: str, tracks: list[tuple[str, str | None]]):
         track_uris: list[str] = []
-        if tracks:
+        for name, artist in tracks:
+            track = self._find_track(name, artist)
+            if track is None:
+                logger.warning("Track not found: {} by {}", name, artist)
+                continue
+            track_uris.append(track["uri"])
+
+        self.start_playback(device_id, track_uris=track_uris)
+
+    def add_to_playback_queue(self, device_id: str, tracks: list[tuple[str, str | None]]) -> None:
+            # Find the URI of each track and add it to queue
             for name, artist in tracks:
                 track = self._find_track(name, artist)
                 if track is None:
                     logger.warning("Track not found: {} by {}", name, artist)
                     continue
-                track_uris.append(track["uri"])
-
-        self.start_playback(device_id, track_uris=track_uris)
+                logger.info("Adding track {} to queue on device {}", track["uri"], device_id)
+                try:
+                    self.spotify_client.add_to_queue(track["uri"], device_id)
+                except (SpotifyException, RequestException) as error:
+                    logger.warning(
+                        "Adding to playback queue on device {} failed: {}", device_id, error
+                    )
+                    raise
 
     def _find_track(
         self,
@@ -283,16 +298,6 @@ class SpotifyClient:
                 "Failed to pause Spotify playback on device {}: {}",
                 device_id,
                 error,
-            )
-            raise
-
-    def add_to_playback_queue(self, device_id: str, track_uri: str) -> None:
-        logger.info("Adding track {} to queue on device {}", track_uri, device_id)
-        try:
-            self.spotify_client.add_to_queue(track_uri, device_id)
-        except (SpotifyException, RequestException) as error:
-            logger.warning(
-                "Adding to playback queue on device {} failed: {}", device_id, error
             )
             raise
 

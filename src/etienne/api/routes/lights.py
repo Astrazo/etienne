@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Request
+from ...devices import Light
 
 lights_router = APIRouter(
     prefix="/lights",
@@ -22,7 +23,7 @@ async def turn_on(
             await light.turn_on()
     else:
         # Grab the light and turn it on
-        light = home.lights[name]
+        light: Light = home.lights[name]
         await light.turn_on()
 
     # We always work
@@ -45,7 +46,7 @@ async def turn_off(
             await light.turn_off()
     else:
         # Grab the light and turn it on
-        light = home.lights[name]
+        light: Light = home.lights[name]
         await light.turn_off()
 
     # We always work

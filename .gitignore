@@ -24,3 +24,6 @@ wheels/
 *.db-journal
 *.db-wal
 *.db-shm
+
+# local only
+DEV_NOTES.md

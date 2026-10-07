@@ -1,3 +1,4 @@
+import asyncio
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -10,6 +11,7 @@ from spotipy.exceptions import SpotifyException
 
 from ...devices import Speaker
 from ...home import Home
+from ...scheduler.speakers import save_speaker_timer
 
 speaker_router = APIRouter(
     prefix="/speakers",
@@ -174,11 +176,12 @@ async def shuffle(name: str, request: Request, state: bool):
 
 
 @speaker_router.post("/{name}/queue/add")
-async def add_to_playback_queue(name: str, request: Request, track_uri: str):
+async def add_to_playback_queue(name: str, request: Request, tracks_input: list[TrackInput]):
     home: Home = request.app.state.home
     speaker: Speaker = home.speakers[name]
+    tracks = [(track.song, track.artist) for track in tracks_input]
     try:
-        await speaker.add_to_playback_queue(track_uri)
+        await speaker.add_to_playback_queue(tracks)
     except (SpotifyException, RequestException) as error:
         raise HTTPException(
             status_code=502,
@@ -189,7 +192,7 @@ async def add_to_playback_queue(name: str, request: Request, track_uri: str):
         "speaker": name,
         "action": "add_to_playback_queue",
         "status": "completed",
-        "track_uri": track_uri,
+        "tracks": tracks,
     }
 
 
@@ -216,39 +219,45 @@ async def navigate_queue(
     }
 
 
-class SleepTimerInput(BaseModel):
-    duration_hr: int | None = Field(default=None, gt=0)
-    off_time: AwareDatetime | None = None
+class TimerInput(BaseModel):
+    action: Literal["resume", "pause"]
+    timer_minutes: float | None = Field(default=None, gt=0)
+    trigger_time: AwareDatetime | None = None
 
     @model_validator(mode="after")
     def validate_choice(self) -> Self:
-        if (self.duration_hr is not None and self.off_time is not None) or (
-            self.duration_hr is None and self.off_time is None
+        if (self.timer_minutes is not None and self.trigger_time is not None) or (
+            self.timer_minutes is None and self.trigger_time is None
         ):
-            raise ValueError("Provide exactly one duration_hr or off_time argument")
+            raise ValueError(
+                "Provide exactly one duration_minutes or off_time argument"
+            )
 
-        if self.off_time is not None and self.off_time <= datetime.now(UTC):
+        if self.trigger_time is not None and self.trigger_time <= datetime.now(UTC):
             raise ValueError("off_time must be in the future")
 
         return self
 
 
-@speaker_router.post("/{name}/sleep_timer")
-async def set_sleep_timer(name: str, request: Request, timer: SleepTimerInput):
+@speaker_router.post("/{name}/timer")
+async def set_timer(name: str, request: Request, timer: TimerInput):
 
     # Use the request object to access home object
     home: Home = request.app.state.home
     speaker: Speaker = home.speakers[name]
+    speaker_spotify_id = speaker.spotify_id
     db_path: Path = request.app.state.db_path
 
     # Determine time
-    if timer.duration_hr is not None:
-        sleep_time = datetime.now(UTC) + timedelta(hours=timer.duration_hr)
-    elif timer.off_time is not None:
-        sleep_time = timer.off_time.astimezone(UTC)
+    if timer.timer_minutes is not None:
+        trigger_time = datetime.now(UTC) + timedelta(minutes=timer.timer_minutes)
+    elif timer.trigger_time is not None:
+        trigger_time = timer.trigger_time.astimezone(UTC)
 
     try:
-        await speaker.set_sleep_timer(sleep_time, db_path)
+        await asyncio.to_thread(
+            save_speaker_timer, db_path, speaker_spotify_id, timer.action, trigger_time
+        )
     except sqlite3.Error as error:
         raise HTTPException(
             status_code=500,
@@ -257,9 +266,9 @@ async def set_sleep_timer(name: str, request: Request, timer: SleepTimerInput):
 
     return {
         "speaker": name,
-        "action": "set_sleep_timer",
+        "action": f"set_{timer.action}_timer",
         "status": "scheduled",
-        "sleep_time": sleep_time,
+        "trigger_time": trigger_time,
     }
 
 

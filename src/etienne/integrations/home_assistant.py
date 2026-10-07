@@ -1,3 +1,9 @@
+"""Home assistant client.  Requires running VM. 
+
+Returns:
+    _type_: _description_
+"""
+
 import httpx
 
 

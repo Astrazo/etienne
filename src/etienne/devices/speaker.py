@@ -1,11 +1,9 @@
+"""Controls playback on a speaker."""
+
 import asyncio
-import sqlite3
-from contextlib import closing
-from datetime import datetime
-from pathlib import Path
 from typing import Literal
 
-from etienne.integrations import HomeAssistantClient, SpotifyClient
+from ..integrations import HomeAssistantClient, SpotifyClient
 
 
 class Speaker:
@@ -77,11 +75,11 @@ class Speaker:
             state,
         )
 
-    async def add_to_playback_queue(self, track_uri: str) -> None:
+    async def add_to_playback_queue(self, tracks: list[tuple[str, str | None]]) -> None:
         await asyncio.to_thread(
             self.spotify_client.add_to_playback_queue,
             self.spotify_id,
-            track_uri,
+            tracks,
         )
 
     async def navigate_queue(self, direction: Literal["next", "previous"]) -> None:
@@ -95,18 +93,3 @@ class Speaker:
                 self.spotify_client.play_previous_track,
                 self.spotify_id,
             )
-
-    async def set_sleep_timer(self, time: datetime, db_path: Path) -> None:
-        """Save a pause deadline for the scheduler to execute."""
-
-        def save_timer():
-            with closing(sqlite3.connect(db_path)) as connection, connection:
-                connection.execute(
-                    """
-                    INSERT INTO speaker_timers (device_id, action, execute_at)
-                    VALUES (?, ?, ?)
-                    """,
-                    (self.spotify_id, "pause", time.timestamp()),
-                )
-
-        await asyncio.to_thread(save_timer)
