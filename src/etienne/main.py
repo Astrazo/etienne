@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 from spotipy import Spotify, SpotifyOAuth
 
 from .api.app import init_app
+from .assistant.laya_client import LayaClient
+from .assistant.ollama_client import OllamaClient
 from .home import Home
 from .integrations import ADBClient, HomeAssistantClient, SpotifyClient
 
@@ -31,5 +33,11 @@ spotify_client = SpotifyClient(SPOTIFY_CLIENT)
 adb_client_living_room = ADBClient(LIVING_ROOM_TV_IP)
 
 home = Home(ha_client, spotify_client, adb_client_living_room)
+laya_client = LayaClient()
+ollama_client = OllamaClient(
+    "qwen3.5:latest",
+    "Call the correct tool with the appropriate arguments to assist with the user's request.",
+    False,
+)
 
-app = init_app(home)
+app = init_app(home, laya_client, ollama_client)

@@ -1,0 +1,11 @@
+from transformers import pipeline
+
+extractor = pipeline(
+    "token-classification",
+    model="dslim/bert-base-NER",
+    aggregation_strategy="simple",
+)
+
+result = extractor("Play Blackpink on the bedroom speaker")
+
+print(result)

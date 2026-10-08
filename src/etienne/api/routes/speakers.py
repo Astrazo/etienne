@@ -9,7 +9,7 @@ from pydantic import AwareDatetime, BaseModel, Field, model_validator
 from requests.exceptions import RequestException
 from spotipy.exceptions import SpotifyException
 
-from ...devices import Speaker
+from ...devices import Speaker, TrackInput
 from ...home import Home
 from ...scheduler.speakers import save_speaker_timer
 
@@ -17,11 +17,6 @@ speaker_router = APIRouter(
     prefix="/speakers",
     tags=["Speakers"],
 )
-
-
-class TrackInput(BaseModel):
-    song: str
-    artist: str | None = None
 
 
 @speaker_router.post("/{name}/play/tracks")
@@ -33,17 +28,20 @@ async def play_tracks(
     home: Home = request.app.state.home
     speaker: Speaker = home.speakers[name]
 
-    tracks = [(track.song, track.artist) for track in tracks_input]
-
     try:
-        await speaker.play_tracks(tracks)
+        await speaker.play_tracks(tracks_input)
     except (SpotifyException, RequestException) as error:
         raise HTTPException(
             status_code=502,
             detail="Could not play tracks through Spotify",
         ) from error
 
-    return {"speaker": name, "action": "play_tracks", "status": "completed"}
+    return {
+        "speaker": name,
+        "action": "play_tracks",
+        "status": "completed",
+        "tracks": tracks_input,
+    }
 
 
 @speaker_router.post("/{name}/play/album")
@@ -176,12 +174,13 @@ async def shuffle(name: str, request: Request, state: bool):
 
 
 @speaker_router.post("/{name}/queue/add")
-async def add_to_playback_queue(name: str, request: Request, tracks_input: list[TrackInput]):
+async def add_to_playback_queue(
+    name: str, request: Request, tracks_input: list[TrackInput]
+):
     home: Home = request.app.state.home
     speaker: Speaker = home.speakers[name]
-    tracks = [(track.song, track.artist) for track in tracks_input]
     try:
-        await speaker.add_to_playback_queue(tracks)
+        await speaker.add_to_playback_queue(tracks_input)
     except (SpotifyException, RequestException) as error:
         raise HTTPException(
             status_code=502,
@@ -192,7 +191,7 @@ async def add_to_playback_queue(name: str, request: Request, tracks_input: list[
         "speaker": name,
         "action": "add_to_playback_queue",
         "status": "completed",
-        "tracks": tracks,
+        "tracks": tracks_input,
     }
 
 

@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Callable
 from typing import Literal
 
 from ..integrations import ADBClient, HomeAssistantClient
@@ -80,3 +81,7 @@ class TV:
 
     async def focused_element(self) -> UIElement | None:
         return await self.adb.get_focused_element()
+
+    def get_tools(self) -> list[Callable]:
+        """Return the light operations available to ollama."""
+        return []

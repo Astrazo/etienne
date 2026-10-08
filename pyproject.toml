@@ -16,6 +16,7 @@ dependencies = [
     "ipykernel>=7.4.0",
     "laya>=0.4.0",
     "loguru>=0.7.3",
+    "ollama>=0.6.3",
     "pydantic>=2.13.5",
     "requests>=2.34.2",
     "ruff>=0.16.8",

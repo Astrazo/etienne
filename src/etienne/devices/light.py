@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 import webcolors
 
 from etienne.integrations.home_assistant import HomeAssistantClient
@@ -47,3 +49,7 @@ class Light:
 
     async def get_state(self) -> dict:
         return await self.ha_client.get_state(self.ha_entity_id)
+
+    def get_tools(self) -> list[Callable]:
+        """Return the light operations available to ollama."""
+        return []

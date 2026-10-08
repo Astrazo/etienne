@@ -28,7 +28,7 @@ pip install laya        # pulls torch, transformers, safetensors, huggingface_hu
 ```python
 import laya
 
-agent = laya.load("convaiinnovations/laya")          # English checkpoint
+agent = laya.load("convaiinnovations/laya")  # English checkpoint
 
 result = agent.predict(
     {"subject": "Charged twice", "body": "Refund the duplicate today or we cancel."},
@@ -47,7 +47,10 @@ result = agent.predict(
             "instructions": "How urgent is this request?",
             "criteria": ["not urgent", "soon", "critical deadline or blocking issue"],
         },
-        "churn_risk": {"type": "noul", "instructions": "Does the user threaten to cancel or leave?"},
+        "churn_risk": {
+            "type": "noul",
+            "instructions": "Does the user threaten to cancel or leave?",
+        },
     },
 )
 answers = result["answers"]
@@ -104,9 +107,13 @@ relying on them.
 ## Choosing a checkpoint
 
 ```python
-agent    = laya.load("convaiinnovations/laya")                              # English, 421M
-agent_ml = laya.load("convaiinnovations/laya", subfolder="multilingual")    # 100+ languages, 322M, ~1.6x faster
-agent_td = laya.load("convaiinnovations/laya", subfolder="typed-decisions") # fine-tuned on four upstream workflows
+agent = laya.load("convaiinnovations/laya")  # English, 421M
+agent_ml = laya.load(
+    "convaiinnovations/laya", subfolder="multilingual"
+)  # 100+ languages, 322M, ~1.6x faster
+agent_td = laya.load(
+    "convaiinnovations/laya", subfolder="typed-decisions"
+)  # fine-tuned on four upstream workflows
 ```
 
 Use the English checkpoint for English text. It is the best general performer and its
@@ -119,9 +126,10 @@ caught. `typed-decisions` only helps if your questions resemble the workflows it
 
 ```python
 from laya import Router
-router = Router(preload=True)                       # all three resident, ~4.6 GB in fp32
-res = router.predict(state, questions)              # res["routing"] says which model and why
-res = router.predict(state, questions, lang="pl")   # force the language when you know it
+
+router = Router(preload=True)  # all three resident, ~4.6 GB in fp32
+res = router.predict(state, questions)  # res["routing"] says which model and why
+res = router.predict(state, questions, lang="pl")  # force the language when you know it
 ```
 
 **Pass `lang=` whenever the application knows the language.** As of laya 0.3.4 the detector
@@ -140,7 +148,7 @@ a = answers["department"]
 if a["probabilities"][a["choice"]] >= 0.85:
     route(a["choice"])
 else:
-    send_to_review(a)            # a person, a slower model, or a queue
+    send_to_review(a)  # a person, a slower model, or a queue
 ```
 
 For yes/no gates compare `answers[id]["noul"]` against a threshold chosen on real data, not
@@ -171,8 +179,10 @@ back. A few hundred labelled examples are enough to see whether it helps.
   ```python
   import threading, laya
   from fastapi import FastAPI
+
   app, lock = FastAPI(), threading.Lock()
   agent = laya.load("convaiinnovations/laya")
+
 
   @app.post("/predict")
   def predict(body: dict):

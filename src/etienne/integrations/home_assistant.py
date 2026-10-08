@@ -1,4 +1,4 @@
-"""Home assistant client.  Requires running VM. 
+"""Home assistant client.  Requires running VM.
 
 Returns:
     _type_: _description_
