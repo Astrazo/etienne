@@ -1,13 +1,13 @@
-import asyncio
+
+from time import perf_counter
 
 from fastapi import APIRouter, HTTPException, Request
 from requests.exceptions import RequestException
 
 from ...assistant.laya_client import LayaClient
 from ...assistant.ollama_client import OllamaClient
+from ...assistant.ollama_client.models import create_device_selection
 from ...home import Home
-
-from time import perf_counter
 
 assistant_router = APIRouter(
     prefix="/assistant",
@@ -22,20 +22,65 @@ async def handle_utterance(utterance: str, request: Request):
     ollama_client: OllamaClient = request.app.state.ollama_client
     start_time = perf_counter()
     try:
-        device, device_type = await asyncio.to_thread(
+        # Laya classifier
+        """device, device_type = await asyncio.to_thread(
             laya_client.select_device, utterance, home
+        )"""
+
+        # Build a device map from home, so ollama can see what devices are available
+        device_map = home.get_device_map()
+        DeviceSelection = create_device_selection(tuple(device_map))
+
+        # Ollama Classifier
+        classifier_resp = await ollama_client.response(
+            utterance=utterance,
+            instructions=(
+                "Identify the device the user is referring to. "
+                "Select the best matching device type and device name from the "
+                "available values. Device types are plural categories: for example, "
+                "'speaker' refers to 'speakers', 'TV' refers to 'tvs', and 'light' refers "
+                "to 'lights'. Only return null if the request contains no identifiable "
+                "device at all."
+            ),
+            format=DeviceSelection.model_json_schema(),
         )
+        selection = DeviceSelection.model_validate_json(classifier_resp.message.content)
+
+        if selection.device is None:
+            return {
+                "device": None,
+                "device_type": None,
+                "actions": [],
+                "status": "no_matching_device",
+            }
+
+        device_key = selection.device
+        device_type, device_name = device_key.split(":", maxsplit=1)
+        device = device_map[device_key]
 
         # Grab the tools that the returned device has
         tools = device.get_tools()
         tool_map = {tool.__name__: tool for tool in tools}
 
         # Pass the tools into Ollama to select function and arguments
-        ollama_response = await ollama_client.response(
+        tool_resp = await ollama_client.response(
             utterance=utterance,
+            instructions=f"""
+            The device has already been selected.
+
+            Selected device:
+            - type: {device_type}
+            - name: {device.name}
+
+            All provided tools are bound specifically to this selected device.
+            You do not need to specify the device as a tool argument.
+
+            You must call the appropriate provided tool to perform the user's request.
+            Do not explain the tool choice or respond with text when an appropriate tool exists.
+            """,
             tools=tools,
         )
-        requested_tools = ollama_response.message.tool_calls
+        requested_tools = tool_resp.message.tool_calls
 
         # Map the names of the tools do their actual function for calling
         tool_map = {tool.__name__: tool for tool in tools}
@@ -71,9 +116,9 @@ async def handle_utterance(utterance: str, request: Request):
         ) from error
     duration = perf_counter() - start_time
     return {
-        "device": device.name,
+        "device": device_name,
         "device_type": device_type,
         "actions": executed_actions,
         "status": "completed",
-        "duration_seconds": round(duration, 3)
+        "duration_seconds": round(duration, 3),
     }

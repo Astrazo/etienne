@@ -1,7 +1,5 @@
-import asyncio
 import sqlite3
-from datetime import UTC, datetime, timedelta
-from pathlib import Path
+from datetime import UTC, datetime
 from typing import Literal, Self
 
 from fastapi import APIRouter, HTTPException, Request
@@ -11,7 +9,6 @@ from spotipy.exceptions import SpotifyException
 
 from ...devices import Speaker, TrackInput
 from ...home import Home
-from ...scheduler.speakers import save_speaker_timer
 
 speaker_router = APIRouter(
     prefix="/speakers",
@@ -228,12 +225,10 @@ class TimerInput(BaseModel):
         if (self.timer_minutes is not None and self.trigger_time is not None) or (
             self.timer_minutes is None and self.trigger_time is None
         ):
-            raise ValueError(
-                "Provide exactly one duration_minutes or off_time argument"
-            )
+            raise ValueError("Provide exactly one of timer_minutes or trigger_time")
 
         if self.trigger_time is not None and self.trigger_time <= datetime.now(UTC):
-            raise ValueError("off_time must be in the future")
+            raise ValueError("trigger_time must be in the future")
 
         return self
 
@@ -244,18 +239,11 @@ async def set_timer(name: str, request: Request, timer: TimerInput):
     # Use the request object to access home object
     home: Home = request.app.state.home
     speaker: Speaker = home.speakers[name]
-    speaker_spotify_id = speaker.spotify_id
-    db_path: Path = request.app.state.db_path
-
-    # Determine time
-    if timer.timer_minutes is not None:
-        trigger_time = datetime.now(UTC) + timedelta(minutes=timer.timer_minutes)
-    elif timer.trigger_time is not None:
-        trigger_time = timer.trigger_time.astimezone(UTC)
-
     try:
-        await asyncio.to_thread(
-            save_speaker_timer, db_path, speaker_spotify_id, timer.action, trigger_time
+        trigger_time = await speaker.set_timer(
+            action=timer.action,
+            timer_minutes=timer.timer_minutes,
+            trigger_time=timer.trigger_time,
         )
     except sqlite3.Error as error:
         raise HTTPException(

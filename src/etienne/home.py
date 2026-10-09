@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from .devices import TV, Light, Speaker
 from .integrations import ADBClient, HomeAssistantClient, SpotifyClient
 
@@ -17,13 +19,13 @@ class Home:
         self.speakers: dict[str, Speaker] = {}
         self.tvs: dict[str, TV] = {}
 
-    async def initialise(self):
+    async def initialise(self, db_path: Path):
         # Connect to Tvs via all adb clients
         await self.adb_client_living_room.connect()
 
         # Build Etienne owned objects
         self._init_lights()
-        self._init_speakers()
+        self._init_speakers(db_path)
         self._init_tvs()
 
     def _init_lights(self):
@@ -57,17 +59,19 @@ class Home:
             ha_client=self.ha_client,
         )
 
-    def _init_speakers(self):
+    def _init_speakers(self, db_path: Path):
         self.speakers["bedroom"] = Speaker(
             name="bedroom",
             spotify_id="bd524fff21a112e1753ff548259324df1c639ec3",
             spotify_client=self.spotify_client,
+            db_path=db_path,
         )
 
         self.speakers["living_room"] = Speaker(
             name="living_room",
             spotify_id="c2f34440bf4982af8a18286dcf308c48dfb7b416",
             spotify_client=self.spotify_client,
+            db_path=db_path,
         )
 
     def _init_tvs(self):
@@ -77,3 +81,15 @@ class Home:
 
     async def close(self) -> None:
         await self.ha_client.close()
+
+    def get_device_map(self) -> dict[str, object]:
+        """Used to build a static lookup of devices that can be passed to Ollama
+
+        Returns:
+            dict[str, object]: _description_
+        """
+        return {
+            f"{device_type}:{device_name}": device
+            for device_type in ("speakers", "tvs", "lights")
+            for device_name, device in getattr(self, device_type).items()
+        }

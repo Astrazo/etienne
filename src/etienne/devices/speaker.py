@@ -2,12 +2,14 @@
 
 import asyncio
 from collections.abc import Callable
-from typing import Literal
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Annotated, Literal
+
+from pydantic import AwareDatetime, Field, validate_call
 
 from ..integrations import HomeAssistantClient, SpotifyClient
 from .models import TrackInput
-
-from pydantic import validate_call
 
 
 class Speaker:
@@ -18,6 +20,7 @@ class Speaker:
         name: str,
         spotify_id: str,
         spotify_client: SpotifyClient,
+        db_path: Path,
         ha_entity_id: str | None = None,
         ha_client: HomeAssistantClient | None = None,
     ):
@@ -26,6 +29,7 @@ class Speaker:
         self.ha_client = ha_client
         self.spotify_id = spotify_id
         self.spotify_client = spotify_client
+        self.db_path = db_path
 
     @validate_call
     async def play_tracks(
@@ -37,7 +41,7 @@ class Speaker:
         Args:
             tracks (list[TrackInput]): Tracks to play, including each track name and optional artist.
         """
-       
+
         spotify_tracks = [(track.song, track.artist) for track in tracks]
         await asyncio.to_thread(
             self.spotify_client.play_tracks,
@@ -152,6 +156,54 @@ class Speaker:
                 self.spotify_id,
             )
 
+    @validate_call
+    async def set_timer(
+        self,
+        action: Literal["resume", "pause"],
+        timer_minutes: Annotated[float, Field(gt=0)] | None = None,
+        trigger_time: AwareDatetime | None = None,
+    ) -> datetime:
+        """Schedule a future pause or resume action for this speaker.
+
+        Provide either a duration in minutes or an exact timestamp, but not both.
+
+        Args:
+            action: Whether to pause or resume the speaker.
+            timer_minutes: Number of minutes from now before running the action.
+            trigger_time: Exact future time to run the action, including a timezone.
+
+        Returns:
+            The scheduled trigger time in UTC.
+        """
+        has_duration = timer_minutes is not None
+        has_trigger_time = trigger_time is not None
+
+        if has_duration == has_trigger_time:
+            raise ValueError("Provide exactly one of timer_minutes or trigger_time")
+
+        if timer_minutes is not None:
+            scheduled_time = datetime.now(UTC) + timedelta(minutes=timer_minutes)
+        else:
+            if trigger_time is None:
+                raise ValueError("Provide exactly one of timer_minutes or trigger_time")
+
+            if trigger_time <= datetime.now(UTC):
+                raise ValueError("trigger_time must be in the future")
+
+            scheduled_time = trigger_time.astimezone(UTC)
+
+        # Import here to avoid a module cycle between devices, Home, and scheduler.
+        from ..scheduler.speakers import save_speaker_timer
+
+        await asyncio.to_thread(
+            save_speaker_timer,
+            self.db_path,
+            self.spotify_id,
+            action,
+            scheduled_time,
+        )
+        return scheduled_time
+
     def get_tools(self) -> list[Callable]:
         """Return the speaker operations available to ollama."""
         return [
@@ -161,4 +213,9 @@ class Speaker:
             self.play_playlist,
             self.pause,
             self.resume,
+            self.add_to_playback_queue,
+            self.navigate_queue,
+            self.set_timer,
+            self.repeat,
+            self.shuffle
         ]

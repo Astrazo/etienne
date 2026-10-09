@@ -24,8 +24,8 @@ def init_app(
         app.state.db_path = init_db()
 
         # Init home and laya
-        await home.initialise()
-        laya_client.initialise()
+        await home.initialise(app.state.db_path)
+        # laya_client.initialise()
 
         # Assign home and laya to the app state
         app.state.home = home

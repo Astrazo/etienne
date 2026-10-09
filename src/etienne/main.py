@@ -36,7 +36,7 @@ home = Home(ha_client, spotify_client, adb_client_living_room)
 laya_client = LayaClient()
 ollama_client = OllamaClient(
     "qwen3.5:latest",
-    "Call the correct tool with the appropriate arguments to assist with the user's request.",
+    "You're an assistant to help direct user requests to the right tool call on the server.",
     False,
 )
 

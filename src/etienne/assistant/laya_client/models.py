@@ -7,18 +7,18 @@ from pydantic import BaseModel, Field
 
 # DEVICES
 class DeviceType(BaseModel):
-    device_type: Literal["light", "speaker", "tv"] = Field(
+    device_type: Literal["lights", "speakers", "tvs"] = Field(
         description=(
             "Which device should handle this request? "
-            "light: lighting, brightness, colours, and making rooms lighter or darker. "
-            "speaker: music, songs, artists, audio playback and volume. "
-            "tv: television, shows, movies, video and streaming applications."
+            "lights: lighting, brightness, colours, and making rooms lighter or darker. "
+            "speakers: music, songs, artists, audio playback and volume. "
+            "tvs: television, shows, movies, video and streaming applications."
         )
     )
 
 
 class DeviceTypeDecision(BaseModel):
-    device_type: Literal["speaker", "tv", "light"]
+    device_type: Literal["speakers", "tvs", "lights"]
     answer_confidence: float
     decision_confidence: float
     probabilities: dict[str, float]

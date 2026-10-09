@@ -10,12 +10,6 @@ from .models import (
     DeviceTypeDecision,
 )
 
-DEVICE_COLLECTIONS = {
-    "speaker": "speakers",
-    "tv": "tvs",
-    "light": "lights",
-}
-
 
 class LayaClient:
     def initialise(self) -> Agent:
@@ -38,7 +32,7 @@ class LayaClient:
         device_type_decision = self._identify_device_type(utterance)
 
         # Grab available devices from the device type
-        devices = getattr(home, DEVICE_COLLECTIONS[device_type_decision.device_type])
+        devices = getattr(home, device_type_decision.device_type)
         device_names = list(devices.keys())
 
         # Find the correct device name
@@ -47,7 +41,9 @@ class LayaClient:
         )
 
         # Return the device
-        return devices[device_name_decision.device_name], device_type_decision.device_type
+        return devices[
+            device_name_decision.device_name
+        ], device_type_decision.device_type
 
     def _identify_device_type(self, utterance) -> DeviceTypeDecision:
         """Decide what device can handle this request
@@ -59,6 +55,8 @@ class LayaClient:
         result = self.agent.decide(
             state=utterance, schema=DeviceType, return_details=True
         )
+
+        print(result)
 
         # Unpack answer
         answer = result.values["device_type"]  # "speaker"
@@ -115,6 +113,8 @@ class LayaClient:
             },
             return_details=True,
         )
+        print()
+        print(result)
 
         # Unpack answer
         answer = result.answers["device_name"]["choice"]  # "speaker"

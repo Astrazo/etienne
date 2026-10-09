@@ -5,7 +5,7 @@ class OllamaClient:
     def __init__(
         self,
         model: str,
-        system_prompt: str,
+        system_prompt: str = False,
         reasoning: bool = False,
     ):
         self.model = model
@@ -16,10 +16,11 @@ class OllamaClient:
     async def response(
         self,
         utterance: str,
+        instructions: str,
         tools: list | None = None,
         format: str | dict | None = None,
     ) -> ChatResponse:
-        return await self.client.chat(
+        response = await self.client.chat(
             model=self.model,
             think=self.reasoning,
             messages=[
@@ -29,9 +30,12 @@ class OllamaClient:
                 },
                 {
                     "role": "user",
-                    "content": utterance,
+                    "content": f"{instructions}\n\nUser request:\n{utterance}",
                 },
             ],
             tools=tools,
             format=format,
         )
+        print()
+        print(response)
+        return response
