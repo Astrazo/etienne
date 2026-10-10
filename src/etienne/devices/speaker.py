@@ -4,13 +4,29 @@ import asyncio
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import AwareDatetime, Field, validate_call
+from pydantic import AwareDatetime, BaseModel, Field, validate_call
 
 from ..integrations import HomeAssistantClient, SpotifyClient
 from .models import TrackInput
 
+
+class SpeakerState(BaseModel):
+    available: bool | None = None
+    is_active: bool | None = None
+    is_playing: bool | None = None
+
+    track_uri: str | None = None
+    track_name: str | None = None
+    artist_name: str | None = None
+
+    volume_percent: int | None = None
+    repeat_state: Literal["off", "track", "context"] | None = None
+    shuffle_state: bool | None = None
+
+    observed_at: datetime | None = None
+    pending_action: str | None = None
 
 class Speaker:
     """Controls music playback on a speaker."""
@@ -30,6 +46,7 @@ class Speaker:
         self.spotify_id = spotify_id
         self.spotify_client = spotify_client
         self.db_path = db_path
+        self.state = SpeakerState()
 
     @validate_call
     async def play_tracks(
@@ -49,6 +66,7 @@ class Speaker:
             spotify_tracks,
         )
 
+    @validate_call
     async def play_album(
         self,
         album_name: str,
@@ -64,6 +82,7 @@ class Speaker:
             self.spotify_client.play_album, self.spotify_id, album_name, artist_name
         )
 
+    @validate_call
     async def play_artist(self, artist_name: str) -> None:
         """Play music by an artist.
 
@@ -76,6 +95,7 @@ class Speaker:
             artist_name,
         )
 
+    @validate_call
     async def play_playlist(self, playlist_name: str) -> None:
         """Play a playlist.
 
@@ -86,6 +106,7 @@ class Speaker:
             self.spotify_client.play_playlist, self.spotify_id, playlist_name
         )
 
+    @validate_call
     async def resume(self) -> None:
         """Resume the currently paused playback."""
         await asyncio.to_thread(
@@ -93,10 +114,12 @@ class Speaker:
             self.spotify_id,
         )
 
+    @validate_call
     async def pause(self) -> None:
         """Pause the current playback."""
         await asyncio.to_thread(self.spotify_client.pause_playback, self.spotify_id)
 
+    @validate_call
     async def repeat(self, state: Literal["track", "context", "off"]) -> None:
         """Set the repeat mode for playback.
 
@@ -112,6 +135,7 @@ class Speaker:
             state,
         )
 
+    @validate_call
     async def shuffle(self, state: bool) -> None:
         """Enable or disable shuffle for the current playback.
 
@@ -138,6 +162,7 @@ class Speaker:
             tracks,
         )
 
+    @validate_call
     async def navigate_queue(self, direction: Literal["next", "previous"]) -> None:
         """_summary_
 
@@ -203,6 +228,31 @@ class Speaker:
             scheduled_time,
         )
         return scheduled_time
+
+    def refresh_state(
+        self,
+        device: dict[str, Any] | None,
+        playback_data: dict[str, Any] | None = None,
+    ) -> None:
+
+        # Extract playback data if it exists
+        playback = playback_data or {}
+        item = playback.get("item") or {}
+        artists = item.get("artists") or []
+
+        # Make object based on playback
+        self.state = SpeakerState(
+            available=device is not None,
+            is_active=playback_data is not None,
+            is_playing=playback.get("is_playing", False),
+            track_uri=item.get("uri"),
+            track_name=item.get("name"),
+            artist_name=artists[0]["name"] if artists else None,
+            volume_percent=device.get("volume_percent") if device else None,
+            repeat_state=playback.get("repeat_state"),
+            shuffle_state=playback.get("shuffle_state"),
+            observed_at=datetime.now(UTC),
+        )
 
     def get_tools(self) -> list[Callable]:
         """Return the speaker operations available to ollama."""

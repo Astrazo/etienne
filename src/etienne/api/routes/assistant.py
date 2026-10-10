@@ -1,10 +1,9 @@
-
+import json
 from time import perf_counter
 
 from fastapi import APIRouter, HTTPException, Request
 from requests.exceptions import RequestException
 
-from ...assistant.laya_client import LayaClient
 from ...assistant.ollama_client import OllamaClient
 from ...assistant.ollama_client.models import create_device_selection
 from ...home import Home
@@ -18,7 +17,6 @@ assistant_router = APIRouter(
 @assistant_router.post("/utterance")
 async def handle_utterance(utterance: str, request: Request):
     home: Home = request.app.state.home
-    laya_client: LayaClient = request.app.state.laya_client
     ollama_client: OllamaClient = request.app.state.ollama_client
     start_time = perf_counter()
     try:
@@ -31,19 +29,46 @@ async def handle_utterance(utterance: str, request: Request):
         device_map = home.get_device_map()
         DeviceSelection = create_device_selection(tuple(device_map))
 
+        # Update home context
+        await home.refresh_home_state({"speakers"})
+
+        # If the device type is a speaker, pass in speaker context
+        # TODO may need to become a tool request if speaker context is required for non-speaker requests
+        home_context = home.get_home_state()
+
         # Ollama Classifier
         classifier_resp = await ollama_client.response(
             utterance=utterance,
-            instructions=(
-                "Identify the device the user is referring to. "
-                "Select the best matching device type and device name from the "
-                "available values. Device types are plural categories: for example, "
-                "'speaker' refers to 'speakers', 'TV' refers to 'tvs', and 'light' refers "
-                "to 'lights'. Only return null if the request contains no identifiable "
-                "device at all."
-            ),
+            instructions=f"""
+            Identify the device the user is referring to.
+
+            Available devices are represented using the format "category:name", where
+            categories are plural. For example:
+
+            - "speakers:bedroom"
+            - "tvs:living_room"
+            - "lights:josh_office"
+
+            Use the current home context when the user refers to an active device without
+            giving its name. For example, requests such as "pause the music", "skip this
+            song", or "what is playing?" refer to the active Spotify speaker.
+
+            An explicitly named device always takes priority over the active device.
+
+            Return null only when:
+
+            - The request does not identify an available device.
+            - The request cannot reasonably apply to the active Spotify speaker.
+            - Additional information is required to determine the intended device.
+
+            Current home context:
+
+            {json.dumps(home_context, indent=2)}
+            """,
             format=DeviceSelection.model_json_schema(),
         )
+        print()
+        print(home_context)
         selection = DeviceSelection.model_validate_json(classifier_resp.message.content)
 
         if selection.device is None:
@@ -77,6 +102,8 @@ async def handle_utterance(utterance: str, request: Request):
 
             You must call the appropriate provided tool to perform the user's request.
             Do not explain the tool choice or respond with text when an appropriate tool exists.
+            Interpret and normalize user-provided arguments when appropriate, including obvious spelling errors, formatting, capitalization,
+            artist names, song names, album names, and playlist names.  Preserve the user's intended meaning.
             """,
             tools=tools,
         )
@@ -109,6 +136,10 @@ async def handle_utterance(utterance: str, request: Request):
                     "arguments": arguments,
                 }
             )
+
+        # Refresh the shared Spotify state after a speaker action.
+        if device_type == "speakers" and executed_actions:
+            await home.refresh_home_state({"speakers"})
 
     except RequestException as error:
         raise HTTPException(

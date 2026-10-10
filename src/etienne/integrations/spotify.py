@@ -358,6 +358,12 @@ class SpotifyClient:
         )
         return " ".join(value.casefold().split())
 
+    def get_status_snapshot(self) -> dict:
+        return {
+            "devices": self.spotify_client.devices()["devices"],
+            "current_playback": self.spotify_client.current_playback(),
+        }
+
     # Not currently used
     def _find_device(self, device_id: str) -> dict | None:
         try:
