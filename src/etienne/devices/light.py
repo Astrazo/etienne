@@ -1,9 +1,13 @@
 from collections.abc import Callable
 
 import webcolors
+from pydantic import BaseModel
 
 from etienne.integrations.home_assistant import HomeAssistantClient
 
+
+class LightState(BaseModel):
+    on: bool
 
 class Light:
     def __init__(

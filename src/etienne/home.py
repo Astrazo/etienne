@@ -5,8 +5,6 @@ from typing import Literal
 from .devices import TV, Light, Speaker
 from .integrations import ADBClient, HomeAssistantClient, SpotifyClient
 
-DeviceCollection = Literal["speakers", "lights", "tvs"]
-
 
 class Home:
     def __init__(
@@ -102,7 +100,7 @@ class Home:
 
     async def refresh_home_state(
         self,
-        device_types: set[DeviceCollection],
+        device_types: set[Literal["speakers", "lights", "tvs"]],
     ) -> None:
         """Refresh state for the requested device collections."""
         unsupported_types = device_types - {"speakers"}
@@ -114,6 +112,10 @@ class Home:
 
         if "speakers" in device_types:
             refresh_tasks.append(self._refresh_speaker_states())
+        if "lights" in device_types:
+            pass
+        if "tvs" in device_types:
+            pass
 
         await asyncio.gather(*refresh_tasks)
 
