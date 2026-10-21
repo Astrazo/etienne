@@ -6,16 +6,15 @@ from spotipy import Spotify, SpotifyOAuth
 from .api.app import init_app
 from .assistant.laya_client import LayaClient
 from .assistant.ollama_client import OllamaClient
+from .config import load_config
 from .home import Home
 from .integrations import ADBClient, HomeAssistantClient, SpotifyClient
 
 load_dotenv()
+config = load_config()
 
 
-HOME_ASSISTANT_URL = "http://homeassistant.local"
 HOME_ASSISTANT_TOKEN = os.getenv("HA_TOKEN")
-LIVING_ROOM_TV_IP = os.getenv("LIVING_ROOM_TV_IP")
-PLATFORM_TOOLS_PATH = os.getenv("PLATFORM_TOOLS_PATH")
 
 SPOTIFY_CLIENT = Spotify(
     auth_manager=SpotifyOAuth(
@@ -28,11 +27,13 @@ SPOTIFY_CLIENT = Spotify(
     )
 )
 
-ha_client = HomeAssistantClient(HOME_ASSISTANT_URL, HOME_ASSISTANT_TOKEN)
+ha_client = HomeAssistantClient(config.home_assistant_url, HOME_ASSISTANT_TOKEN)
 spotify_client = SpotifyClient(SPOTIFY_CLIENT)
-adb_client_living_room = ADBClient(LIVING_ROOM_TV_IP)
+adb_clients = {
+    name: ADBClient(tv.host, port=tv.port) for name, tv in config.tvs.items()
+}
 
-home = Home(ha_client, spotify_client, adb_client_living_room)
+home = Home(ha_client, spotify_client, adb_clients, config)
 laya_client = LayaClient()
 ollama_client = OllamaClient(
     "qwen3.5:latest",

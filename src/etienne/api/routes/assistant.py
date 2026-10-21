@@ -47,7 +47,7 @@ async def handle_utterance(utterance: str, request: Request):
 
             - "speakers:bedroom"
             - "tvs:living_room"
-            - "lights:josh_office"
+            - "lights:office"
 
             Use the current home context when the user refers to an active device without
             giving its name. For example, requests such as "pause the music", "skip this

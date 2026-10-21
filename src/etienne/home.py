@@ -2,6 +2,7 @@ import asyncio
 from pathlib import Path
 from typing import Literal
 
+from .config import HomeConfig
 from .devices import TV, Light, Speaker
 from .integrations import ADBClient, HomeAssistantClient, SpotifyClient
 
@@ -11,11 +12,13 @@ class Home:
         self,
         ha_client: HomeAssistantClient,
         spotify_client: SpotifyClient,
-        adb_client_living_room: ADBClient,
+        adb_clients: dict[str, ADBClient],
+        config: HomeConfig,
     ):
         self.ha_client = ha_client
         self.spotify_client = spotify_client
-        self.adb_client_living_room = adb_client_living_room
+        self.adb_clients = adb_clients
+        self.config = config
 
         self.lights: dict[str, Light] = {}
         self.speakers: dict[str, Speaker] = {}
@@ -30,7 +33,8 @@ class Home:
 
     async def initialise(self, db_path: Path):
         # Connect to Tvs via all adb clients
-        await self.adb_client_living_room.connect()
+        for adb_client in self.adb_clients.values():
+            await adb_client.connect()
 
         # Build Etienne owned objects
         self._init_lights()
@@ -41,62 +45,25 @@ class Home:
         await self.refresh_home_state({"speakers"})
 
     def _init_lights(self):
-        self.lights["josh_office"] = Light(
-            name="josh_office",
-            ha_entity_id="light.josh_office",
-            ha_client=self.ha_client,
-        )
-
-        self.lights["living_room_1"] = Light(
-            name="living_room_1",
-            ha_entity_id="light.living_room_1",
-            ha_client=self.ha_client,
-        )
-
-        self.lights["living_room_2"] = Light(
-            name="living_room_2",
-            ha_entity_id="light.living_room_2",
-            ha_client=self.ha_client,
-        )
-
-        self.lights["living_room_3"] = Light(
-            name="living_room_3",
-            ha_entity_id="light.living_room_3",
-            ha_client=self.ha_client,
-        )
-
-        self.lights["kitchen"] = Light(
-            name="kitchen",
-            ha_entity_id="light.kitchen",
-            ha_client=self.ha_client,
-        )
+        for name, entity_id in self.config.lights.items():
+            self.lights[name] = Light(
+                name=name,
+                ha_entity_id=entity_id,
+                ha_client=self.ha_client,
+            )
 
     def _init_speakers(self, db_path: Path):
-        self.speakers["bedroom"] = Speaker(
-            name="bedroom",
-            spotify_id="bd524fff21a112e1753ff548259324df1c639ec3",
-            spotify_client=self.spotify_client,
-            db_path=db_path,
-        )
-
-        self.speakers["living_room"] = Speaker(
-            name="living_room",
-            spotify_id="c2f34440bf4982af8a18286dcf308c48dfb7b416",
-            spotify_client=self.spotify_client,
-            db_path=db_path,
-        )
-
-        self.speakers["josh_pc"] = Speaker(
-            name="josh_pc",
-            spotify_id="ddd4b2e1a53f188886d633437586b9dd59047661",
-            spotify_client=self.spotify_client,
-            db_path=db_path,
-        )
+        for name, spotify_id in self.config.speakers.items():
+            self.speakers[name] = Speaker(
+                name=name,
+                spotify_id=spotify_id,
+                spotify_client=self.spotify_client,
+                db_path=db_path,
+            )
 
     def _init_tvs(self):
-        self.tvs["living_room"] = TV(
-            "living_room", adb_client=self.adb_client_living_room
-        )
+        for name in self.config.tvs:
+            self.tvs[name] = TV(name, adb_client=self.adb_clients[name])
 
     async def refresh_home_state(
         self,

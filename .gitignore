@@ -26,5 +26,6 @@ wheels/
 *.db-shm
 
 # local only
+/config.toml
 DEV_NOTES.md
 /src/etienne/jevos/package/
