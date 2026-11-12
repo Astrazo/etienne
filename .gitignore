@@ -29,3 +29,4 @@ wheels/
 /config.toml
 DEV_NOTES.md
 /src/etienne/jevos/package/
+notebooks/

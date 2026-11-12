@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Literal
 
 from .config import HomeConfig
-from .devices import TV, Light, Speaker
+from .devices import TV, Light, Speaker, ToolProvider
 from .integrations import ADBClient, HomeAssistantClient, SpotifyClient
 
 
@@ -114,17 +114,30 @@ class Home:
     async def close(self) -> None:
         await self.ha_client.close()
 
-    def get_device_map(self) -> dict[str, object]:
+    def get_device_map(self) -> dict[str, ToolProvider]:
         """Used to build a static lookup of devices that can be passed to Ollama
 
         Returns:
-            dict[str, object]: _description_
+            dict[str, ToolProvider]: _description_
         """
-        return {
-            f"{device_type}:{device_name}": device
-            for device_type in ("speakers", "tvs", "lights")
-            for device_name, device in getattr(self, device_type).items()
-        }
+        devices = {}
+
+        # For each device type
+        for device_type in ("speakers", "tvs", "lights"):
+
+            # Grab the dictionary lookup for each this device type
+            device_group = getattr(self, device_type)
+
+            # For each device name and object in the dicionary
+            for device_name, device in device_group.items():
+
+                # Create the key (speaker:bedroom) for example
+                key = f"{device_type}:{device_name}"
+                
+                # Create a key pair linking that key to the specific device so functions can be called on it
+                devices[key] = device
+
+        return devices
 
     def get_home_state(self) -> dict:
         return {

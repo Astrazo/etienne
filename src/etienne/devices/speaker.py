@@ -66,6 +66,14 @@ class Speaker:
             spotify_tracks,
         )
 
+        track_names = ", ".join(
+            f"{track.song} by {track.artist}"
+            if track.artist else track.song
+            for track in tracks
+        )
+
+        return f"Successfully started playback of: {track_names}."
+
     @validate_call
     async def play_album(
         self,
