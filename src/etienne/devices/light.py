@@ -7,8 +7,8 @@ from etienne.integrations.home_assistant import HomeAssistantClient
 
 
 class LightState(BaseModel):
-    on: bool
-    colour: str
+    on: bool | None = None
+    colour: str | None = None
 
 class Light:
     def __init__(
@@ -49,7 +49,6 @@ class Light:
         )
 
     async def turn_off(self) -> None:
-
 
         # Build request body
         body = {"entity_id": self.ha_entity_id}

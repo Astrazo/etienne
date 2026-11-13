@@ -104,9 +104,11 @@ async def handle_utterance(utterance: str, request: Request):
             You do not need to specify the device as a tool argument.
 
             You must call the appropriate provided tool to perform the user's request.
-            Do not explain the tool choice or respond with text when an appropriate tool exists.
-            Interpret and normalize user-provided arguments when appropriate, including obvious spelling errors, formatting, capitalization,
-            artist names, song names, album names, and playlist names.  Preserve the user's intended meaning.
+            Respond with a confirmation of what you did for the user in a natural way.
+            Preserve the words in user-provided song titles, artist names, album names, and playlist names when constructing tool arguments.
+            Treat these names as literal text, including pronouns such as "you" and "me". Do not paraphrase or substitute words.
+            You may normalize capitalization and whitespace, and correct clear spelling typos. If uncertain, keep the original wording.
+            Base your final response on the actual tool results and preserve the names reported by those tools.
             """,
             tools=tools
         )
@@ -137,4 +139,5 @@ async def handle_utterance(utterance: str, request: Request):
         "actions": executed_actions,
         "status": "completed",
         "duration_seconds": round(duration, 3),
+        "assistant_response": tool_resp["messages"][-1].content
     }
