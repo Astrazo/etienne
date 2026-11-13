@@ -52,7 +52,7 @@ class Speaker:
     async def play_tracks(
         self,
         tracks: list[TrackInput],
-    ) -> None:
+    ) -> str:
         """Play one or more specific tracks.
 
         Args:
@@ -60,19 +60,40 @@ class Speaker:
         """
 
         spotify_tracks = [(track.song, track.artist) for track in tracks]
-        await asyncio.to_thread(
+        result = await asyncio.to_thread(
             self.spotify_client.play_tracks,
             self.spotify_id,
             spotify_tracks,
         )
 
-        track_names = ", ".join(
-            f"{track.song} by {track.artist}"
-            if track.artist else track.song
-            for track in tracks
-        )
+        # Build a list of found track names
+        found_track_names = []
+        for track in result["found_tracks"]:
+            track_name = track["name"]
+            artist_names = ", ".join(artist["name"] for artist in track.get("artists", []))
+            if artist_names:
+                track_name += f" by {artist_names}"
+            found_track_names.append(track_name)
 
-        return f"Successfully started playback of: {track_names}."
+        # Join track names into one string
+        track_names = ", ".join(found_track_names)
+        if track_names:
+            message = f"Successfully started playback of: {track_names}."
+        else:
+            message = "No tracks were found to play."
+
+        # If any tracks where missing, append those to the message too
+        missing_track_names = []
+        for track in result["missing_tracks"]:
+            track_name = track["song"]
+            if track["artist"]:
+                track_name += f" by {track['artist']}"
+            missing_track_names.append(track_name)
+        if missing_track_names:
+            missing_names = ", ".join(missing_track_names)
+            message += f" Could not find: {missing_names}."
+
+        return message
 
     @validate_call
     async def play_album(

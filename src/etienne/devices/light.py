@@ -8,6 +8,7 @@ from etienne.integrations.home_assistant import HomeAssistantClient
 
 class LightState(BaseModel):
     on: bool
+    colour: str
 
 class Light:
     def __init__(
@@ -17,6 +18,7 @@ class Light:
         ha_client: HomeAssistantClient,
     ):
         self.name = name
+        self.state = LightState()
         self.ha_entity_id = ha_entity_id
         self.ha_client = ha_client
 
@@ -26,6 +28,7 @@ class Light:
         colour: str | None = None,
         flash: str | None = None,
     ) -> None:
+        # Build request body
         body = {"entity_id": self.ha_entity_id}
 
         if effect is not None:
@@ -38,6 +41,7 @@ class Light:
         if flash is not None:
             body["flash"] = flash
 
+        # Call HA service
         await self.ha_client.call_service(
             "light",
             "turn_on",
@@ -45,15 +49,29 @@ class Light:
         )
 
     async def turn_off(self) -> None:
+
+
+        # Build request body
+        body = {"entity_id": self.ha_entity_id}
+
+        # Call HA service
         await self.ha_client.call_service(
             "light",
             "turn_off",
-            {"entity_id": self.ha_entity_id},
+            body,
         )
 
-    async def get_state(self) -> dict:
+    async def get_ha_state(self) -> dict:
+        """Get the state of the light as reported by HA.
+
+        Returns:
+            dict: HA state dictionary.
+        """
         return await self.ha_client.get_state(self.ha_entity_id)
 
     def get_tools(self) -> list[Callable]:
         """Return the light operations available to ollama."""
-        return []
+        return [
+            self.turn_on,
+            self.turn_off
+        ]

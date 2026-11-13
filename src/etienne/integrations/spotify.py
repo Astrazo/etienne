@@ -80,36 +80,51 @@ class SpotifyClient:
             )
             raise
 
-    def play_tracks(self, device_id: str, tracks: list[tuple[str, str | None]]):
+    def play_tracks(
+        self, device_id: str, tracks: list[tuple[str, str | None]]
+    ) -> dict:
         track_uris: list[str] = []
+        found_tracks = []
+        missing_tracks = []
         for name, artist in tracks:
             track = self._find_track(name, artist)
             if track is None:
                 logger.warning("Track not found: {} by {}", name, artist)
+                missing_tracks.append({"song": name, "artist": artist})
                 continue
             track_uris.append(track["uri"])
+            found_tracks.append(track)
 
-        self.start_playback(device_id, track_uris=track_uris)
+        if track_uris:
+            self.start_playback(device_id, track_uris=track_uris)
+
+        return {"found_tracks": found_tracks, "missing_tracks": missing_tracks}
 
     def add_to_playback_queue(
         self, device_id: str, tracks: list[tuple[str, str | None]]
-    ) -> None:
+    ) -> dict:
         # Find the URI of each track and add it to queue
+        matched_tracks = []
+        missing_tracks = []
         for name, artist in tracks:
             track = self._find_track(name, artist)
             if track is None:
                 logger.warning("Track not found: {} by {}", name, artist)
+                missing_tracks.append({"song": name, "artist": artist})
                 continue
             logger.info(
                 "Adding track {} to queue on device {}", track["uri"], device_id
             )
             try:
                 self.spotify_client.add_to_queue(track["uri"], device_id)
+                matched_tracks.append(track)
             except (SpotifyException, RequestException) as error:
                 logger.warning(
                     "Adding to playback queue on device {} failed: {}", device_id, error
                 )
                 raise
+
+        return {"matched_tracks": matched_tracks, "missing_tracks": missing_tracks}
 
     def _find_track(
         self,
@@ -154,7 +169,7 @@ class SpotifyClient:
         device_id: str,
         album_name: str,
         artist: str | None = None,
-    ) -> None:
+    ) -> dict | None:
         album = self._find_album(album_name, artist)
 
         if album is None:
@@ -165,6 +180,7 @@ class SpotifyClient:
             device_id,
             context_uri=album["uri"],
         )
+        return album
 
     def _find_album(
         self,
@@ -206,7 +222,7 @@ class SpotifyClient:
         self,
         device_id: str,
         artist_name: str,
-    ) -> None:
+    ) -> dict | None:
         artist = self._find_artist(artist_name)
 
         if artist is None:
@@ -217,6 +233,7 @@ class SpotifyClient:
             device_id,
             context_uri=artist["uri"],
         )
+        return artist
 
     def _find_artist(self, artist_name: str) -> dict | None:
         try:
@@ -248,7 +265,7 @@ class SpotifyClient:
         self,
         device_id: str,
         playlist_name: str,
-    ) -> None:
+    ) -> dict | None:
         playlist = self._find_playlist(playlist_name)
 
         if playlist is None:
@@ -259,6 +276,7 @@ class SpotifyClient:
             device_id,
             context_uri=playlist["uri"],
         )
+        return playlist
 
     def _find_playlist(self, name: str) -> dict | None:
         try:
