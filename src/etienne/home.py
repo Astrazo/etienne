@@ -124,16 +124,14 @@ class Home:
 
         # For each device type
         for device_type in ("speakers", "tvs", "lights"):
-
             # Grab the dictionary lookup for each this device type
             device_group = getattr(self, device_type)
 
             # For each device name and object in the dicionary
             for device_name, device in device_group.items():
-
                 # Create the key (speaker:bedroom) for example
                 key = f"{device_type}:{device_name}"
-                
+
                 # Create a key pair linking that key to the specific device so functions can be called on it
                 devices[key] = device
 

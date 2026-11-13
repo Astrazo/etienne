@@ -10,6 +10,7 @@ class LightState(BaseModel):
     on: bool | None = None
     colour: str | None = None
 
+
 class Light:
     def __init__(
         self,
@@ -70,7 +71,4 @@ class Light:
 
     def get_tools(self) -> list[Callable]:
         """Return the light operations available to ollama."""
-        return [
-            self.turn_on,
-            self.turn_off
-        ]
+        return [self.turn_on, self.turn_off]

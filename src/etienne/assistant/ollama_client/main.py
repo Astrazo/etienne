@@ -65,22 +65,25 @@ class OllamaClient:
             system_prompt=f"{self.system_prompt}\n\n{instructions}",
             tools=tools,
             response_format=format,
-            middleware=[self._handle_tool_errors]
+            middleware=[self._handle_tool_errors],
         )
 
-        response = await agent.ainvoke({
-            "messages": [
-                HumanMessage(content=utterance),
-            ]
-        })
+        response = await agent.ainvoke(
+            {
+                "messages": [
+                    HumanMessage(content=utterance),
+                ]
+            }
+        )
 
         return response
 
     @staticmethod
     @wrap_tool_call
     async def _handle_tool_errors(
-        request: ToolCallRequest, 
-        handler: Callable[[ToolCallRequest], Awaitable[ToolMessage]]):
+        request: ToolCallRequest,
+        handler: Callable[[ToolCallRequest], Awaitable[ToolMessage]],
+    ):
         """Convert tool exceptions into ToolMessages the model can react to."""
         try:
             return await handler(request)
@@ -106,19 +109,21 @@ class OllamaClient:
         format: type[BaseModel] | dict[str, Any],
         utterance: str | None = None,
         agent_result: dict[str, Any] | None = None,
-    ): 
+    ):
         # These instructions belong to this formatting step, rather than the agent.
         messages: list[BaseMessage] = [SystemMessage(content=instructions)]
 
         # Build messages to be formatted
         if agent_result is not None:
             messages.extend(agent_result["messages"])
-            messages.append(HumanMessage(
-                content="Produce the structured response from the conversation and tool results above."
-            ))
+            messages.append(
+                HumanMessage(
+                    content="Produce the structured response from the conversation and tool results above."
+                )
+            )
         elif utterance is not None:
             messages.append(HumanMessage(content=utterance))
-        
+
         model = ChatOllama(model=self.model, reasoning=self.reasoning)
         structured_model = model.with_structured_output(
             format,

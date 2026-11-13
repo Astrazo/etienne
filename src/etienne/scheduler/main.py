@@ -35,11 +35,16 @@ async def _process_speaker_timers(home: Home, db_path: Path) -> None:
 
     # Get any due timers from speakers
     due_timers = await asyncio.to_thread(get_due_speaker_timers, db_path)
-    speakers = {speaker.spotify_id: speaker for speaker in home.speakers.values()}
+    speakers_by_spotify_id = {
+        speaker.spotify_id: speaker for speaker in home.speakers.values()
+    }
 
     for timer_id, device_id, action in due_timers:
         try:
-            speaker = speakers[device_id]
+            speaker = home.speakers.get(device_id)
+            if speaker is None:
+                # Timers saved before device names were used contain Spotify IDs.
+                speaker = speakers_by_spotify_id[device_id]
             if action == "pause":
                 await speaker.pause()
             elif action == "resume":

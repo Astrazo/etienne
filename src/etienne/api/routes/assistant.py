@@ -87,7 +87,7 @@ async def handle_utterance(utterance: str, request: Request):
 
         # Grab the tools that the returned device has
         tools = device.get_tools()
-        #tool_map = {tool.__name__: tool for tool in tools}
+        # tool_map = {tool.__name__: tool for tool in tools}
 
         # TODO replace with langchain loop to simplify
         # Call the right tool on the identified device
@@ -110,7 +110,7 @@ async def handle_utterance(utterance: str, request: Request):
             You may normalize capitalization and whitespace, and correct clear spelling typos. If uncertain, keep the original wording.
             Base your final response on the actual tool results and preserve the names reported by those tools.
             """,
-            tools=tools
+            tools=tools,
         )
 
         # Extract what tools were called
@@ -139,5 +139,5 @@ async def handle_utterance(utterance: str, request: Request):
         "actions": executed_actions,
         "status": "completed",
         "duration_seconds": round(duration, 3),
-        "assistant_response": tool_resp["messages"][-1].content
+        "assistant_response": tool_resp["messages"][-1].content,
     }

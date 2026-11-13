@@ -240,7 +240,7 @@ async def set_timer(name: str, request: Request, timer: TimerInput):
     home: Home = request.app.state.home
     speaker: Speaker = home.speakers[name]
     try:
-        result = await speaker.set_timer(
+        await speaker.set_timer(
             action=timer.action,
             timer_minutes=timer.timer_minutes,
             trigger_time=timer.trigger_time,
@@ -253,9 +253,9 @@ async def set_timer(name: str, request: Request, timer: TimerInput):
 
     return {
         "speaker": name,
-        "action": f"set_{timer.action}_timer",
+        "message": f"set_{timer.action}_timer",
         "status": "scheduled",
-        "trigger_time": result["trigger_time"],
+        "trigger_time": timer,
     }
 
 

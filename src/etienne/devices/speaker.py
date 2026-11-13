@@ -28,6 +28,7 @@ class SpeakerState(BaseModel):
     observed_at: datetime | None = None
     pending_action: str | None = None
 
+
 class Speaker:
     """Controls music playback on a speaker."""
 
@@ -70,7 +71,9 @@ class Speaker:
         found_track_names = []
         for track in result["found_tracks"]:
             track_name = track["name"]
-            artist_names = ", ".join(artist["name"] for artist in track.get("artists", []))
+            artist_names = ", ".join(
+                artist["name"] for artist in track.get("artists", [])
+            )
             if artist_names:
                 track_name += f" by {artist_names}"
             found_track_names.append(track_name)
@@ -100,56 +103,84 @@ class Speaker:
         self,
         album_name: str,
         artist_name: str | None = None,
-    ) -> None:
+    ) -> str:
         """Play an album.
 
         Args:
             album_name (str): Name of the album to play.
             artist_name (str | None, optional): Artist of the album if specified by the user. Defaults to None.
         """
-        await asyncio.to_thread(
+        found_album = await asyncio.to_thread(
             self.spotify_client.play_album, self.spotify_id, album_name, artist_name
         )
 
+        if found_album is None:
+            requested_album = album_name
+            if artist_name:
+                requested_album += f" by {artist_name}"
+            return f"Could not find album: {requested_album}."
+
+        found_album_name = found_album["name"]
+        artist_names = ", ".join(
+            artist["name"] for artist in found_album.get("artists", [])
+        )
+        if artist_names:
+            found_album_name += f" by {artist_names}"
+        return f"Successfully started playback of album: {found_album_name}."
+
     @validate_call
-    async def play_artist(self, artist_name: str) -> None:
+    async def play_artist(self, artist_name: str) -> str:
         """Play music by an artist.
 
         Args:
             artist_name (str): Name of the artist to play.
         """
-        await asyncio.to_thread(
+        found_artist = await asyncio.to_thread(
             self.spotify_client.play_artist,
             self.spotify_id,
             artist_name,
         )
 
+        if found_artist is None:
+            return f"Could not find artist: {artist_name}."
+
+        return f"Successfully started playback of music by {found_artist['name']}."
+
     @validate_call
-    async def play_playlist(self, playlist_name: str) -> None:
+    async def play_playlist(self, playlist_name: str) -> str:
         """Play a playlist.
 
         Args:
             playlist_name (str): Name of the playlist to play.
         """
-        await asyncio.to_thread(
+        found_playlist = await asyncio.to_thread(
             self.spotify_client.play_playlist, self.spotify_id, playlist_name
         )
 
+        if found_playlist is None:
+            return f"Could not find playlist: {playlist_name}."
+
+        return f"Successfully started playback of playlist: {found_playlist['name']}."
+
     @validate_call
-    async def resume(self) -> None:
+    async def resume(self) -> str:
         """Resume the currently paused playback."""
         await asyncio.to_thread(
             self.spotify_client.start_playback,
             self.spotify_id,
         )
 
+        return f"Successfully resumed playback on {self.name} speaker."
+
     @validate_call
-    async def pause(self) -> None:
+    async def pause(self) -> str:
         """Pause the current playback."""
         await asyncio.to_thread(self.spotify_client.pause_playback, self.spotify_id)
 
+        return f"Successfully paused playback of on {self.name} speaker."
+
     @validate_call
-    async def repeat(self, state: Literal["track", "context", "off"]) -> None:
+    async def repeat(self, state: Literal["track", "context", "off"]) -> str:
         """Set the repeat mode for playback.
 
         Args:
@@ -164,8 +195,10 @@ class Speaker:
             state,
         )
 
+        return f"Successfully set repeat mode to {state} on {self.name} speaker."
+
     @validate_call
-    async def shuffle(self, state: bool) -> None:
+    async def shuffle(self, state: bool) -> str:
         """Enable or disable shuffle for the current playback.
 
         Args:
@@ -177,22 +210,55 @@ class Speaker:
             state,
         )
 
+        return f"Successfully set shuffle mode to {state} on {self.name} speaker."
+
     @validate_call
-    async def add_to_playback_queue(self, tracks_input: list[TrackInput]) -> None:
+    async def add_to_playback_queue(self, tracks_input: list[TrackInput]) -> str:
         """Add one or more tracks to the playback queue.
 
         Args:
             tracks_input (list[TrackInput]): Tracks to add to queue, including each track name and optional artist.
         """
         tracks = [(track.song, track.artist) for track in tracks_input]
-        await asyncio.to_thread(
+        result = await asyncio.to_thread(
             self.spotify_client.add_to_playback_queue,
             self.spotify_id,
             tracks,
         )
 
+        # Build a list of found track names
+        found_track_names = []
+        for track in result["found_tracks"]:
+            track_name = track["name"]
+            artist_names = ", ".join(
+                artist["name"] for artist in track.get("artists", [])
+            )
+            if artist_names:
+                track_name += f" by {artist_names}"
+            found_track_names.append(track_name)
+
+        # Join track names into one string
+        track_names = ", ".join(found_track_names)
+        if track_names:
+            message = f"Successfully added to the playback queue: {track_names}."
+        else:
+            message = "No tracks were found to add to the playback queue."
+
+        # If any tracks where missing, append those to the message too
+        missing_track_names = []
+        for track in result["missing_tracks"]:
+            track_name = track["song"]
+            if track["artist"]:
+                track_name += f" by {track['artist']}"
+            missing_track_names.append(track_name)
+        if missing_track_names:
+            missing_names = ", ".join(missing_track_names)
+            message += f" Could not find to add to the playback queue: {missing_names}."
+
+        return message
+
     @validate_call
-    async def navigate_queue(self, direction: Literal["next", "previous"]) -> None:
+    async def navigate_queue(self, direction: Literal["next", "previous"]) -> str:
         """_summary_
 
         Args:
@@ -210,13 +276,17 @@ class Speaker:
                 self.spotify_id,
             )
 
+        return (
+            f"Successfully navigated to the {direction} track on {self.name} speaker."
+        )
+
     @validate_call
     async def set_timer(
         self,
         action: Literal["resume", "pause"],
         timer_minutes: Annotated[float, Field(gt=0)] | None = None,
         trigger_time: AwareDatetime | None = None,
-    ) -> datetime:
+    ) -> str:
         """Schedule a future pause or resume action for this speaker.
 
         Provide either a duration in minutes or an exact timestamp, but not both.
@@ -252,11 +322,14 @@ class Speaker:
         await asyncio.to_thread(
             save_speaker_timer,
             self.db_path,
-            self.spotify_id,
+            self.name,
             action,
             scheduled_time,
         )
-        return scheduled_time
+        if timer_minutes:
+            return f"Successfully set a timer on {self.name} speaker to {action} in {timer_minutes} minutes."
+        else:
+            return f"Successfully set a timer on {self.name} speaker to {action} at {scheduled_time}."
 
     def refresh_state(
         self,
@@ -296,5 +369,5 @@ class Speaker:
             self.navigate_queue,
             self.set_timer,
             self.repeat,
-            self.shuffle
+            self.shuffle,
         ]

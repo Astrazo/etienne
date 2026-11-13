@@ -10,7 +10,7 @@ from loguru import logger
 
 
 def save_speaker_timer(
-    db_path: Path, spotify_id: str, action: Literal["resume", "pause"], time: datetime
+    db_path: Path, speaker_name: str, action: Literal["resume", "pause"], time: datetime
 ) -> None:
     with closing(sqlite3.connect(db_path)) as connection:
         with connection:
@@ -19,14 +19,14 @@ def save_speaker_timer(
                 INSERT INTO speaker_timers (device_id, action, execute_at)
                 VALUES (?, ?, ?)
                 """,
-                (spotify_id, action, time.timestamp()),
+                (speaker_name, action, time.timestamp()),
             )
 
         logger.info(
             "Saved speaker timer {}: {} device {} at {}",
             cursor.lastrowid,
             action,
-            spotify_id,
+            speaker_name,
             time.isoformat(),
         )
 

@@ -80,9 +80,7 @@ class SpotifyClient:
             )
             raise
 
-    def play_tracks(
-        self, device_id: str, tracks: list[tuple[str, str | None]]
-    ) -> dict:
+    def play_tracks(self, device_id: str, tracks: list[tuple[str, str | None]]) -> dict:
         track_uris: list[str] = []
         found_tracks = []
         missing_tracks = []
@@ -104,7 +102,7 @@ class SpotifyClient:
         self, device_id: str, tracks: list[tuple[str, str | None]]
     ) -> dict:
         # Find the URI of each track and add it to queue
-        matched_tracks = []
+        found_tracks = []
         missing_tracks = []
         for name, artist in tracks:
             track = self._find_track(name, artist)
@@ -117,14 +115,14 @@ class SpotifyClient:
             )
             try:
                 self.spotify_client.add_to_queue(track["uri"], device_id)
-                matched_tracks.append(track)
+                found_tracks.append(track)
             except (SpotifyException, RequestException) as error:
                 logger.warning(
                     "Adding to playback queue on device {} failed: {}", device_id, error
                 )
                 raise
 
-        return {"matched_tracks": matched_tracks, "missing_tracks": missing_tracks}
+        return {"found_tracks": found_tracks, "missing_tracks": missing_tracks}
 
     def _find_track(
         self,
