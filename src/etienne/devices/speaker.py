@@ -332,12 +332,53 @@ class Speaker:
             return f"Successfully set a timer on {self.name} speaker to {action} at {scheduled_time}."
 
     @validate_call
-    def cancel_timer(
+    async def cancel_timer(
         self,
         action: Literal["resume", "pause"] | None = None,
         trigger_time: AwareDatetime | None = None,
     ) -> str:
-        
+        """Cancel a single matching timer on this speaker.
+
+        Omit filters when the user has not specified an action or exact time.
+        If multiple timers match, none are cancelled; ask the user to choose
+        from the returned options, then call again with the chosen filters.
+
+        Args:
+            action: Restrict cancellation to pause or resume timers, if specified.
+            trigger_time: Exact scheduled time, including a timezone, if specified.
+        """
+        # Import here to avoid a module cycle between devices, Home, and scheduler.
+        from ..scheduler.speakers import delete_speaker_timer, get_active_timers
+
+        active_timers = await asyncio.to_thread(
+            get_active_timers,
+            db_path=self.db_path,
+            speaker_name=self.name,
+            action=action,
+            time=trigger_time,
+        )
+
+        if not active_timers:
+            return f"No timers match the supplied filters for the {self.name} speaker."
+
+        if len(active_timers) > 1:
+            options = []
+            for _, _, timer_action, execute_at in active_timers:
+                scheduled_time = datetime.fromtimestamp(execute_at, UTC)
+                options.append(f"{timer_action} at {scheduled_time.isoformat()}")
+            return (
+                f"Multiple timers match for the {self.name} speaker: "
+                + "; ".join(options)
+                + ". No timers were cancelled. Ask the user which timer to cancel."
+            )
+
+        timer_id, _, timer_action, execute_at = active_timers[0]
+        await asyncio.to_thread(delete_speaker_timer, self.db_path, timer_id)
+        scheduled_time = datetime.fromtimestamp(execute_at, UTC)
+        return (
+            f"The {timer_action} timer on the {self.name} speaker set for "
+            f"{scheduled_time.isoformat()} has been cancelled."
+        )
 
     def refresh_state(
         self,
@@ -376,6 +417,7 @@ class Speaker:
             self.add_to_playback_queue,
             self.navigate_queue,
             self.set_timer,
+            self.cancel_timer,
             self.repeat,
             self.shuffle,
         ]
