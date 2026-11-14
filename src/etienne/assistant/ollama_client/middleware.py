@@ -13,13 +13,11 @@ from langchain.messages import SystemMessage, ToolMessage
 from loguru import logger
 
 
-@staticmethod
 @wrap_model_call
 async def add_dynamic_context(
     request: ModelRequest,
     handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
 ) -> ModelResponse:
-    
     # Build current time context
     timezone = ZoneInfo("Australia/Sydney")
     now = datetime.now(timezone)
@@ -38,7 +36,6 @@ async def add_dynamic_context(
     return await handler(request.override(system_message=system_message))
 
 
-@staticmethod
 @wrap_tool_call
 async def handle_tool_errors(
     request: ToolCallRequest,

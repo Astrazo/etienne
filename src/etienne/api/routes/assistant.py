@@ -2,11 +2,11 @@ import json
 from time import perf_counter
 
 from fastapi import APIRouter, HTTPException, Request
-from langchain_core.messages import AIMessage
 from requests.exceptions import RequestException
 
 from ...assistant.ollama_client import OllamaClient
 from ...assistant.ollama_client.models import create_device_selection
+from ...assistant.ollama_client.routes import handle_device_request, handle_general_request
 from ...home import Home
 
 assistant_router = APIRouter(
@@ -41,7 +41,18 @@ async def handle_utterance(utterance: str, request: Request):
         classifier_resp = await ollama_client.structured_response_langchain(
             utterance=utterance,
             instructions=f"""
-            Identify the device the user is referring to.
+            Classify the user's request using one of three routes:
+
+            - "device": The request applies to an available device and you can
+              identify which one. Set device to its exact available key and
+              clarification_question to null.
+            - "general": The request does not require selecting a home device,
+              such as a weather question or general conversation. Set device
+              and clarification_question to null. Do not answer the request.
+            - "clarification": The request requires a device, but the intended
+              device is missing, ambiguous, or unavailable. Set device to null
+              and clarification_question to a concise question that asks which
+              available device the user intends. Do not invent a device key.
 
             Available devices are represented using the format "category:name", where
             categories are plural. For example:
@@ -50,17 +61,26 @@ async def handle_utterance(utterance: str, request: Request):
             - "tvs:living_room"
             - "lights:office"
 
+            Available device keys:
+            {json.dumps(list(device_map))}
+
             Use the current home context when the user refers to an active device without
             giving its name. For example, requests such as "pause the music", "skip this
             song", or "what is playing?" refer to the active Spotify speaker.
 
             An explicitly named device always takes priority over the active device.
 
-            Return null only when:
+            Use the "device" route only when the available devices and current
+            home context identify the intended device. Do not choose an arbitrary
+            device when the context is ambiguous. General questions about devices
+            do not require selecting one unless they concern a specific home device.
 
-            - The request does not identify an available device.
-            - The request cannot reasonably apply to the active Spotify speaker.
-            - Additional information is required to determine the intended device.
+            Examples:
+            - "Pause the bedroom speaker": route "device", selecting
+              "speakers:bedroom" if it is available.
+            - "What's the weather?": route "general".
+            - "Turn it off" with no clear device in context: route "clarification",
+              asking "Which device would you like me to turn off?"
 
             Current home context:
 
@@ -71,73 +91,39 @@ async def handle_utterance(utterance: str, request: Request):
         print()
         print(home_context)
 
-        # Check if a device was returned
-        if classifier_resp.device is None:
-            return {
-                "device": None,
-                "device_type": None,
-                "actions": [],
-                "status": "no_matching_device",
-            }
-
-        # Unpack selection
-        device_key = classifier_resp.device
-        device_type, device_name = device_key.split(":", maxsplit=1)
-        device = device_map[device_key]
-
-        # Grab the tools that the returned device has
-        tools = device.get_tools()
-        # tool_map = {tool.__name__: tool for tool in tools}
-
-        # TODO replace with langchain loop to simplify
-        # Call the right tool on the identified device
-        tool_resp = await ollama_client.response_langchain(
-            utterance=utterance,
-            instructions=f"""
-            The device has already been selected.
-
-            Selected device:
-            - type: {device_type}
-            - name: {device_name}
-
-            All provided tools are bound specifically to this selected device.
-            You do not need to specify the device as a tool argument.
-
-            You must call the appropriate provided tool to perform the user's request.
-            Respond with a confirmation of what you did for the user in a natural way.
-            Preserve the words in user-provided song titles, artist names, album names, and playlist names when constructing tool arguments.
-            Treat these names as literal text, including pronouns such as "you" and "me". Do not paraphrase or substitute words.
-            You may normalize capitalization and whitespace, and correct clear spelling typos. If uncertain, keep the original wording.
-            Base your final response on the actual tool results and preserve the names reported by those tools.
-            """,
-            tools=tools,
-        )
-
-        # Extract what tools were called
-        executed_actions = [
-            {
-                "function": tool_call["name"],
-                "arguments": tool_call["args"],
-            }
-            for message in tool_resp["messages"]
-            if isinstance(message, AIMessage)
-            for tool_call in message.tool_calls
-        ]
-
-        # Refresh the shared Spotify state after a speaker action.
-        if device_type == "speakers" and executed_actions:
-            await home.refresh_home_state({"speakers"})
+        # Route classification
+        match classifier_resp.route:
+            case "device":
+                device_key = classifier_resp.device
+                response = await handle_device_request(
+                    utterance=utterance,
+                    device_key=device_key,
+                    device=device_map[device_key],
+                    home=home,
+                    ollama_client=ollama_client,
+                )
+                
+                # Return
+                return response
+            case "general":
+                response = await handle_general_request(
+                    utterance=utterance,
+                    ollama_client=ollama_client
+                )
+                response["duration_seconds"] = round(perf_counter() - start_time, 3)
+                return response
+            case "clarification":
+                pass
 
     except RequestException as error:
         raise HTTPException(
             status_code=502, detail="Could not form plan using Laya"
         ) from error
-    duration = perf_counter() - start_time
+
+    # Preserve the existing fallback until the other routes are implemented.
     return {
-        "device": device_name,
-        "device_type": device_type,
-        "actions": executed_actions,
-        "status": "completed",
-        "duration_seconds": round(duration, 3),
-        "assistant_response": tool_resp["messages"][-1].content,
+        "device": None,
+        "device_type": None,
+        "actions": [],
+        "status": "no_matching_device",
     }
