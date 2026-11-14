@@ -293,7 +293,8 @@ class Speaker:
 
         Args:
             action: Whether to pause or resume the speaker.
-            timer_minutes: Number of minutes from now before running the action.
+            timer_minutes: Duration in minutes, including fractional minutes.
+                Convert seconds to minutes by dividing by 60 if request is in seconds.
             trigger_time: Exact future time to run the action, including a timezone.
 
         Returns:
@@ -336,19 +337,26 @@ class Speaker:
         self,
         action: Literal["resume", "pause"] | None = None,
         trigger_time: AwareDatetime | None = None,
+        cancel_all: bool = False,
     ) -> str:
-        """Cancel a single matching timer on this speaker.
+        """Cancel a single matching timer, or all matching timers on this speaker.
 
         Omit filters when the user has not specified an action or exact time.
-        If multiple timers match, none are cancelled; ask the user to choose
+        Unless cancel_all is true, multiple matches require the user to choose
         from the returned options, then call again with the chosen filters.
 
         Args:
             action: Restrict cancellation to pause or resume timers, if specified.
             trigger_time: Exact scheduled time, including a timezone, if specified.
+            cancel_all: Set to true only when the user requests cancellation of all
+                matching timers. Supplied filters still apply. Without filters,
+                cancels every timer on this speaker. Defaults to false.
         """
         # Import here to avoid a module cycle between devices, Home, and scheduler.
-        from ..scheduler.speakers import delete_speaker_timer, get_active_timers
+        from ..scheduler.speakers import (
+            delete_speaker_timers,
+            get_active_timers,
+        )
 
         active_timers = await asyncio.to_thread(
             get_active_timers,
@@ -361,7 +369,8 @@ class Speaker:
         if not active_timers:
             return f"No timers match the supplied filters for the {self.name} speaker."
 
-        if len(active_timers) > 1:
+        # If multiple timers match the query and we aren't cancelling all
+        if len(active_timers) > 1 and not cancel_all:
             options = []
             for _, _, timer_action, execute_at in active_timers:
                 scheduled_time = datetime.fromtimestamp(execute_at, UTC)
@@ -372,13 +381,63 @@ class Speaker:
                 + ". No timers were cancelled. Ask the user which timer to cancel."
             )
 
-        timer_id, _, timer_action, execute_at = active_timers[0]
-        await asyncio.to_thread(delete_speaker_timer, self.db_path, timer_id)
+        # Otherwise delete all timers that are in the active timer list
+        timer_ids = [timer[0] for timer in active_timers]
+        deleted_count = await asyncio.to_thread(
+            delete_speaker_timers, self.db_path, timer_ids
+        )
+        if cancel_all:
+            return (
+                f"Cancelled {deleted_count} matching timer(s) on the {self.name} speaker."
+            )
+
+        if deleted_count == 0:
+            return f"The matching timer on the {self.name} speaker no longer exists. No timers were cancelled."
+
+        # If not cancel all, get info on the returned active timer, and send it up
+        _, _, timer_action, execute_at = active_timers[0]
         scheduled_time = datetime.fromtimestamp(execute_at, UTC)
         return (
             f"The {timer_action} timer on the {self.name} speaker set for "
             f"{scheduled_time.isoformat()} has been cancelled."
         )
+
+    @validate_call
+    async def get_timers(
+        self,
+        action: Literal["resume", "pause"] | None = None,
+        trigger_time: AwareDatetime | None = None,
+    ) -> str:
+        """List scheduled timers on this speaker without changing them.
+
+        Omit filters to list every timer on this speaker.
+
+        Args:
+            action: Restrict results to pause or resume timers, if specified.
+            trigger_time: Exact scheduled time, including a timezone, if specified.
+
+        Returns:
+            Matching timer actions and their scheduled times in UTC.
+        """
+        # Import here to avoid a module cycle between devices, Home, and scheduler.
+        from ..scheduler.speakers import get_active_timers
+
+        active_timers = await asyncio.to_thread(
+            get_active_timers,
+            db_path=self.db_path,
+            speaker_name=self.name,
+            action=action,
+            time=trigger_time,
+        )
+
+        if not active_timers:
+            return f"No timers match the supplied filters for the {self.name} speaker."
+
+        options = []
+        for _, _, timer_action, execute_at in active_timers:
+            scheduled_time = datetime.fromtimestamp(execute_at, UTC)
+            options.append(f"{timer_action} at {scheduled_time.isoformat()}")
+        return f"Timers on the {self.name} speaker: " + "; ".join(options) + "."
 
     def refresh_state(
         self,
@@ -418,6 +477,7 @@ class Speaker:
             self.navigate_queue,
             self.set_timer,
             self.cancel_timer,
+            self.get_timers,
             self.repeat,
             self.shuffle,
         ]

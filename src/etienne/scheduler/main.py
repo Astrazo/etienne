@@ -8,7 +8,7 @@ from pathlib import Path
 from loguru import logger
 
 from ..home import Home
-from .speakers import delete_speaker_timer, get_due_speaker_timers
+from .speakers import delete_speaker_timers, get_due_speaker_timers
 
 POLL_INTERVAL_SECONDS = 60
 
@@ -61,7 +61,7 @@ async def _process_speaker_timers(home: Home, db_path: Path) -> None:
             )
 
             # Delete the timer after it's been triggered
-            await asyncio.to_thread(delete_speaker_timer, db_path, timer_id)
+            await asyncio.to_thread(delete_speaker_timers, db_path, [timer_id])
 
             # Update home state
             await home.refresh_home_state({"speakers"})

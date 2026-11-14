@@ -42,12 +42,17 @@ def save_speaker_timer(
         )
 
 
-def delete_speaker_timer(db_path: Path, timer_id: int) -> None:
+def delete_speaker_timers(db_path: Path, timer_ids: list[int]) -> int:
+    """Delete the selected timers in one transaction and return the number deleted."""
     with closing(sqlite3.connect(db_path)) as connection:
         with connection:
-            connection.execute("DELETE FROM speaker_timers WHERE id = ?", (timer_id,))
+            cursor = connection.executemany(
+                "DELETE FROM speaker_timers WHERE id = ?",
+                [(timer_id,) for timer_id in timer_ids],
+            )
 
-        logger.debug("Deleted speaker timer {}", timer_id)
+        logger.debug("Deleted {} speaker timer(s)", cursor.rowcount)
+        return cursor.rowcount
 
 
 def get_due_speaker_timers(db_path: Path) -> list[tuple[int, str, str]]:
