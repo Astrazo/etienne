@@ -1,15 +1,13 @@
-from collections.abc import Awaitable, Callable
 from typing import Any
 
 from langchain.agents import create_agent
-from langchain.agents.middleware import wrap_tool_call
-from langchain.messages import HumanMessage, SystemMessage, ToolMessage
-from langchain.tools.tool_node import ToolCallRequest
+from langchain.messages import HumanMessage, SystemMessage
 from langchain_core.messages import BaseMessage
 from langchain_ollama import ChatOllama
-from loguru import logger
 from ollama import AsyncClient, ChatResponse
 from pydantic import BaseModel
+
+from .middleware import add_dynamic_context, handle_tool_errors
 
 
 class OllamaClient:
@@ -65,7 +63,7 @@ class OllamaClient:
             system_prompt=f"{self.system_prompt}\n\n{instructions}",
             tools=tools,
             response_format=format,
-            middleware=[self._handle_tool_errors],
+            middleware=[handle_tool_errors, add_dynamic_context],
         )
 
         response = await agent.ainvoke(
@@ -77,29 +75,6 @@ class OllamaClient:
         )
 
         return response
-
-    @staticmethod
-    @wrap_tool_call
-    async def _handle_tool_errors(
-        request: ToolCallRequest,
-        handler: Callable[[ToolCallRequest], Awaitable[ToolMessage]],
-    ):
-        """Convert tool exceptions into ToolMessages the model can react to."""
-        try:
-            return await handler(request)
-        except Exception as e:  # noqa: BLE001
-            logger.exception(
-                "Tool {} failed",
-                request.tool_call["name"],
-            )
-            return ToolMessage(
-                content=(
-                    f"Tool failed with {type(e).__name__}: {e}. "
-                    "The action may have partially completed."
-                ),
-                tool_call_id=request.tool_call["id"],
-                status="error",
-            )
 
     # This funciton is needed as we found a limitation with structured responses with tool calls inside
     # create_agent.  If we need a structured output, pass messages into here

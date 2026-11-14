@@ -387,9 +387,7 @@ class Speaker:
             delete_speaker_timers, self.db_path, timer_ids
         )
         if cancel_all:
-            return (
-                f"Cancelled {deleted_count} matching timer(s) on the {self.name} speaker."
-            )
+            return f"Cancelled {deleted_count} matching timer(s) on the {self.name} speaker."
 
         if deleted_count == 0:
             return f"The matching timer on the {self.name} speaker no longer exists. No timers were cancelled."
