@@ -31,7 +31,9 @@ class DeviceSelection(BaseModel):
                 self.clarification_question is None
                 or not self.clarification_question.strip()
             ):
-                raise ValueError("The clarification route requires a non-empty question")
+                raise ValueError(
+                    "The clarification route requires a non-empty question"
+                )
         elif self.clarification_question is not None:
             raise ValueError("Only the clarification route may specify a question")
 

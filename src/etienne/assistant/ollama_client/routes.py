@@ -2,12 +2,14 @@
 
 from typing import Any
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, ToolMessage
+from loguru import logger
 
 from ...devices import ToolProvider
 from ...home import Home
-from .main import OllamaClient
 from .general_tools import get_general_tools
+from .main import OllamaClient
+
 
 async def handle_general_request(
     utterance: str,
@@ -17,13 +19,34 @@ async def handle_general_request(
         utterance=utterance,
         instructions="""
         Respond to the user's request naturally and concisely.
-        Use the provided tools when you need current information or need to perform an action.
+        Use the provided tools when you need current information or need to perform an action.  
+        
+        For current or time-sensitive facts—including election dates,
+        news, schedules, prices, and public office holders—you must call
+        search_web before answering. Do not answer these from memory.
+        Prefer official sources and include the supporting source URL.
+        Interpret "next" relative to the current local datetime provided in context.
+        Do not assume a year in a follow-up search unless the retrieved evidence supports it.
+        If search fails or the results do not establish the answer, say you could not
+        verify it. Do not replace missing evidence with a guess or a calculation from memory.
+        
         Answer directly when a tool is unnecessary.
+        
         Base claims about tool actions and retrieved information on successful tool results.
         If something fails or information is missing, explain that clearly.
         """,
         tools=get_general_tools(),
     )
+
+    # Log the evidence the model received, including failures, for troubleshooting.
+    for message in model_response["messages"]:
+        if isinstance(message, ToolMessage):
+            logger.debug(
+                "General tool {} result ({}): {}",
+                message.name,
+                message.status,
+                message.content,
+            )
 
     # Get any tool calls
     executed_actions = [
@@ -45,10 +68,12 @@ async def handle_general_request(
         "assistant_response": model_response["messages"][-1].content,
     }
 
+
 async def handle_clarification_request(
     utterace: str,
-) -> dict[str: Any]:
+) -> dict[str:Any]:
     pass
+
 
 async def handle_device_request(
     utterance: str,

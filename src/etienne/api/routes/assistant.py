@@ -6,7 +6,10 @@ from requests.exceptions import RequestException
 
 from ...assistant.ollama_client import OllamaClient
 from ...assistant.ollama_client.models import create_device_selection
-from ...assistant.ollama_client.routes import handle_device_request, handle_general_request
+from ...assistant.ollama_client.routes import (
+    handle_device_request,
+    handle_general_request,
+)
 from ...home import Home
 
 assistant_router = APIRouter(
@@ -102,13 +105,12 @@ async def handle_utterance(utterance: str, request: Request):
                     home=home,
                     ollama_client=ollama_client,
                 )
-                
+
                 # Return
                 return response
             case "general":
                 response = await handle_general_request(
-                    utterance=utterance,
-                    ollama_client=ollama_client
+                    utterance=utterance, ollama_client=ollama_client
                 )
                 response["duration_seconds"] = round(perf_counter() - start_time, 3)
                 return response

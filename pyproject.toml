@@ -15,6 +15,7 @@ dependencies = [
     "import-linter[ui]>=2.15",
     "ipykernel>=7.4.0",
     "langchain>=1.5.0",
+    "langchain-community>=0.4.2",
     "langchain-ollama>=1.1.0",
     "laya>=0.4.0",
     "loguru>=0.7.3",
