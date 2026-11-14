@@ -28,5 +28,12 @@ def init_db(path: str | Path | None = None) -> Path:
             )
             """
         )
+        # A separate index also applies the constraint to existing databases.
+        connection.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS speaker_timers_device_execute_at
+            ON speaker_timers (device_id, execute_at)
+            """
+        )
 
     return db_path

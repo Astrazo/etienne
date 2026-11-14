@@ -331,6 +331,14 @@ class Speaker:
         else:
             return f"Successfully set a timer on {self.name} speaker to {action} at {scheduled_time}."
 
+    @validate_call
+    def cancel_timer(
+        self,
+        action: Literal["resume", "pause"] | None = None,
+        trigger_time: AwareDatetime | None = None,
+    ) -> str:
+        
+
     def refresh_state(
         self,
         device: dict[str, Any] | None,

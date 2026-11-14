@@ -14,13 +14,24 @@ def save_speaker_timer(
 ) -> None:
     with closing(sqlite3.connect(db_path)) as connection:
         with connection:
-            cursor = connection.execute(
-                """
-                INSERT INTO speaker_timers (device_id, action, execute_at)
-                VALUES (?, ?, ?)
-                """,
-                (speaker_name, action, time.timestamp()),
-            )
+            try:
+                cursor = connection.execute(
+                    """
+                    INSERT INTO speaker_timers (device_id, action, execute_at)
+                    VALUES (?, ?, ?)
+                    """,
+                    (speaker_name, action, time.timestamp()),
+                )
+            except sqlite3.IntegrityError as error:
+                if error.sqlite_errorcode != sqlite3.SQLITE_CONSTRAINT_UNIQUE:
+                    raise
+
+                # Raise back to the model that there already exists a timer at this time.
+                raise ValueError(
+                    f"A timer already exists for speaker '{speaker_name}' at {time.isoformat()}. "
+                    "The user needs to remove this timer first, or change the time of their new timer. "
+                    "The existing timer is unchanged."
+                ) from error
 
         logger.info(
             "Saved speaker timer {}: {} device {} at {}",
@@ -54,3 +65,39 @@ def get_due_speaker_timers(db_path: Path) -> list[tuple[int, str, str]]:
         logger.debug("Found {} due speaker timer(s)", len(due_timers))
 
     return due_timers
+
+
+def get_active_timers(
+    db_path: Path,
+    speaker_name: str | None = None,
+    action: Literal["resume", "pause"] | None = None,
+    time: datetime | None = None,
+) -> list[tuple[int, str, str, float]]:
+    """Return stored timers matching all supplied filters, or all timers if omitted."""
+    conditions: list[str] = []
+    parameters: list[str | float] = []
+
+    if speaker_name is not None:
+        conditions.append("device_id = ?")
+        parameters.append(speaker_name)
+
+    if action is not None:
+        conditions.append("action = ?")
+        parameters.append(action)
+
+    if time is not None:
+        conditions.append("execute_at = ?")
+        parameters.append(time.timestamp())
+
+    query = "SELECT id, device_id, action, execute_at FROM speaker_timers"
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+    query += " ORDER BY execute_at, id"
+
+    with closing(sqlite3.connect(db_path)) as connection:
+        timers = connection.execute(query, parameters).fetchall()
+
+    if timers:
+        logger.debug("Found {} matching speaker timer(s)", len(timers))
+
+    return timers
