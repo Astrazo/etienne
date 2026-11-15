@@ -7,6 +7,7 @@ from langchain_core.messages import BaseMessage
 from langchain_ollama import ChatOllama
 from ollama import AsyncClient, ChatResponse
 from pydantic import BaseModel
+from .models import QueryClassification
 
 from .middleware import add_dynamic_context, handle_tool_errors
 
@@ -85,7 +86,7 @@ class OllamaClient:
         format: type[BaseModel] | dict[str, Any],
         utterance: str | None = None,
         agent_result: dict[str, Any] | None = None,
-    ):
+    ) -> QueryClassification:
         """Generate validated output, allowing up to three retries with feedback."""
         # These instructions belong to this formatting step, rather than the agent.
         messages: list[BaseMessage] = [SystemMessage(content=instructions)]

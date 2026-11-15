@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Request
 from requests.exceptions import RequestException
 
 from ...assistant.ollama_client import OllamaClient
-from ...assistant.ollama_client.models import create_device_selection
+from ...assistant.ollama_client.models import add_device_selection
 from ...assistant.ollama_client.routes import (
     handle_device_request,
     handle_general_request,
@@ -31,7 +31,7 @@ async def handle_utterance(utterance: str, request: Request):
 
         # Build a device map from home, so ollama can see what devices are available
         device_map = home.get_device_map()
-        DeviceSelection = create_device_selection(tuple(device_map))
+        QueryClassification = add_device_selection(tuple(device_map))
 
         # Update home context so the model can see all active devices
         await home.refresh_home_state({"speakers"})
@@ -40,56 +40,46 @@ async def handle_utterance(utterance: str, request: Request):
         # TODO may need to become a tool request if speaker context is required for non-speaker requests
         home_context = home.get_home_state()
 
-        # Ollama Device Classifier
+        # Classify the route and whether the user is requesting information.
         classifier_resp = await ollama_client.structured_response_langchain(
             utterance=utterance,
             instructions=f"""
-            Classify the user's request using one of three routes:
+            Classify the user's message. Do not answer it or perform any actions.
 
-            - "device": The request applies to an available device and you can
-              identify which one. Set device to its exact available key and
+            Choose a route:
+            - "device": A request about a specific available home device that can
+              be identified. Set device to its exact key; clarification_question is null.
+            - "general": No specific home device is needed. Set device and
               clarification_question to null.
-            - "general": The request does not require selecting a home device,
-              such as a weather question or general conversation. Set device
-              and clarification_question to null. Do not answer the request.
-            - "clarification": The request requires a device, but the intended
-              device is missing, ambiguous, or unavailable. Set device to null
-              and clarification_question to a concise question that asks which
-              available device the user intends. Do not invent a device key.
+            - "clarification": A home device is needed but cannot be identified.
+              Set device to null and ask a concise question in clarification_question.
 
-            Available devices are represented using the format "category:name", where
-            categories are plural. For example:
+            Choose query_classification based on what the user is requesting:
+            - "question": Requests factual information or an explanation, even
+              without a question mark, such as "Tell me when the next election is".
+            - "discussion": Does not request factual information or an explanation,
+              such as a greeting, observation, reaction, or instruction to perform an action.
+            Merely mentioning a factual topic does not make a statement a question.
 
-            - "speakers:bedroom"
-            - "tvs:living_room"
-            - "lights:office"
-
-            Available device keys:
-            {json.dumps(list(device_map))}
-
-            Use the current home context when the user refers to an active device without
-            giving its name. For example, requests such as "pause the music", "skip this
-            song", or "what is playing?" refer to the active Spotify speaker.
-
-            An explicitly named device always takes priority over the active device.
-
-            Use the "device" route only when the available devices and current
-            home context identify the intended device. Do not choose an arbitrary
-            device when the context is ambiguous. General questions about devices
-            do not require selecting one unless they concern a specific home device.
+            For device selection, an explicit name takes priority. Otherwise use
+            home context when it clearly identifies the device, such as the active
+            Spotify speaker for "pause the music". Never guess a device. General
+            questions about how devices work use the general route.
 
             Examples:
-            - "Pause the bedroom speaker": route "device", selecting
-              "speakers:bedroom" if it is available.
-            - "What's the weather?": route "general".
+            - "It's so sunny today!": route "general", query_classification "discussion".
+            - "Will it be sunny tomorrow?": route "general", query_classification "question".
+            - "Pause the bedroom speaker": route "device" if "speakers:bedroom" is available.
             - "Turn it off" with no clear device in context: route "clarification",
               asking "Which device would you like me to turn off?"
 
-            Current home context:
+            Available device keys (category:name):
+            {json.dumps(list(device_map))}
 
+            Current home context:
             {json.dumps(home_context, indent=2)}
             """,
-            format=DeviceSelection,
+            format=QueryClassification,
         )
         print()
         print(home_context)
@@ -105,17 +95,17 @@ async def handle_utterance(utterance: str, request: Request):
                     home=home,
                     ollama_client=ollama_client,
                 )
-
-                # Return
-                return response
             case "general":
                 response = await handle_general_request(
                     utterance=utterance, ollama_client=ollama_client
                 )
-                response["duration_seconds"] = round(perf_counter() - start_time, 3)
-                return response
+                response["query_classification"] = classifier_resp.query_classification
             case "clarification":
                 pass
+
+        response["duration_seconds"] = round(perf_counter() - start_time, 3)
+        response["utterance"] = utterance
+        return response
 
     except RequestException as error:
         raise HTTPException(

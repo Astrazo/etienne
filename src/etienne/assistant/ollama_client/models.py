@@ -5,7 +5,7 @@ from typing import Literal, Self
 from pydantic import BaseModel, Field, create_model, model_validator
 
 
-class DeviceSelection(BaseModel):
+class QueryClassification(BaseModel):
     """Classify a request as device-specific, general, or needing clarification."""
 
     route: Literal["device", "general", "clarification"] = Field(
@@ -16,6 +16,16 @@ class DeviceSelection(BaseModel):
     )
     clarification_question: str | None = Field(
         description="A question identifying the intended device for the clarification route; null otherwise."
+    )
+    query_classification: Literal["question", "discussion"] = Field(
+        description=(
+            "Classify the user's requested task. "
+            "'question': The user requests factual information or an explanation. "
+            "'discussion': Greetings, reactions, observations, or casual conversation "
+            "that do not request factual information. "
+            "Examples: 'It is sunny today' → discussion; "
+            "'Will it be sunny tomorrow?' → question."
+        )
     )
 
     @model_validator(mode="after")
@@ -36,13 +46,16 @@ class DeviceSelection(BaseModel):
                 )
         elif self.clarification_question is not None:
             raise ValueError("Only the clarification route may specify a question")
+        
+        if self.route == "general" and self.query_classification is None:
+            raise ValueError("The general route requires a query classification")
 
         return self
 
 
-def create_device_selection(
+def add_device_selection(
     device_choices: tuple[str, ...],
-) -> type[DeviceSelection]:
+) -> type[QueryClassification]:
     """Build a selection schema restricted to the currently available devices."""
     if device_choices:
         device_type = Literal[device_choices] | None
@@ -51,7 +64,7 @@ def create_device_selection(
 
     return create_model(
         "DeviceSelection",
-        __base__=DeviceSelection,
+        __base__=QueryClassification,
         device=(
             device_type,
             Field(

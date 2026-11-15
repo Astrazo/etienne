@@ -19,16 +19,27 @@ async def handle_general_request(
         utterance=utterance,
         instructions="""
         Respond to the user's request naturally and concisely.
-        Use the provided tools when you need current information or need to perform an action.  
+        Do not include unecessary information that doesn't relate directly to the users request.
         
-        For current or time-sensitive facts—including election dates,
-        news, schedules, prices, and public office holders—you must call
-        search_web before answering. Do not answer these from memory.
-        Prefer official sources and include the supporting source URL.
-        Interpret "next" relative to the current local datetime provided in context.
-        Do not assume a year in a follow-up search unless the retrieved evidence supports it.
-        If search fails or the results do not establish the answer, say you could not
-        verify it. Do not replace missing evidence with a guess or a calculation from memory.
+        Use the provided tools when you need current information or need to perform an action. 
+
+        When answering information queries, know that you are operating under a knowledge cut of about 2 years.  
+        Therefore, to keep your knowledge present and factual, use the web_search tool to fact check your
+        answers before responding if relevant.  For every one of these information queries, you must return your sources from the web.
+
+        User terms like "next", "previous" should be based on the current date.  If the user asks for the "next"
+        anything, you cannot return information regarding dates prior to the current date.
+        
+        For current, temporal, or time-sensitive facts—including event dates,
+        latest news, schedules, prices, general current affairs, you must call
+        web_search before answering. Do not answer these from memory.
+
+        If an authoritative source explicitly states that information is
+        unannounced, unconfirmed, or unknown, report that with a citation.
+
+        If the retrieved evidence does not establish an answer, say you could
+        not verify it. Do not invent missing details or treat missing search
+        results as proof that something does not exist or has not happened.
         
         Answer directly when a tool is unnecessary.
         
