@@ -7,9 +7,9 @@ from langchain_core.messages import BaseMessage
 from langchain_ollama import ChatOllama
 from ollama import AsyncClient, ChatResponse
 from pydantic import BaseModel
-from .models import QueryClassification
 
 from .middleware import add_dynamic_context, handle_tool_errors
+from .models import QueryClassification
 
 
 class OllamaClient:
