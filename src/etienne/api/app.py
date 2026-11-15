@@ -10,7 +10,9 @@ from ..assistant.ollama_client import OllamaClient
 from ..db import init_db
 from ..home import Home
 from ..scheduler import run_scheduler
+from ..web import register_web
 from .routes import assistant_router, lights_router, speaker_router, tv_router
+from .routes.ui import ui_router
 
 
 def init_app(
@@ -54,5 +56,8 @@ def init_app(
     app.include_router(tv_router)
     app.include_router(speaker_router)
     app.include_router(assistant_router)
+    app.include_router(ui_router)
+    # NiceGUI mounts at / after the API routes so it does not shadow them.
+    register_web(app)
 
     return app

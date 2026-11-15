@@ -20,6 +20,7 @@ wheels/
 
 # Local SQLite data (including journal files)
 /data/
+/.nicegui/
 *.db
 *.db-journal
 *.db-wal

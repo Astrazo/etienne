@@ -29,6 +29,13 @@ class Light:
         colour: str | None = None,
         flash: str | None = None,
     ) -> None:
+        """Turn on this light with optional effects.
+
+        Args:
+            effect (str | None, optional): Effect for the light. Defaults to None.
+            colour (str | None, optional): Colour of the light. Defaults to None.
+            flash (str | None, optional): If the light should be flashing. Defaults to None.
+        """
         # Build request body
         body = {"entity_id": self.ha_entity_id}
 
@@ -50,6 +57,8 @@ class Light:
         )
 
     async def turn_off(self) -> None:
+        """Turn off this light.
+        """
 
         # Build request body
         body = {"entity_id": self.ha_entity_id}

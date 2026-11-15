@@ -115,11 +115,7 @@ class Home:
         await self.ha_client.close()
 
     def get_device_map(self) -> dict[str, ToolProvider]:
-        """Used to build a static lookup of devices that can be passed to Ollama
-
-        Returns:
-            dict[str, ToolProvider]: _description_
-        """
+        """Return the initialized devices by their canonical category:name keys."""
         devices = {}
 
         # For each device type
@@ -136,6 +132,53 @@ class Home:
                 devices[key] = device
 
         return devices
+
+    def get_device_inventory(self) -> list[dict]:
+        """Describe the same registered objects for the UI and HTTP API.
+
+        This is a snapshot of last known state, not discovery or a network refresh.
+        Integrations update the device objects through refresh_home_state().
+        """
+        inventory = []
+        for device_id, device in self.get_device_map().items():
+            state = "unknown"
+            if isinstance(device, Speaker):
+                device_type = "speaker"
+                source = "Spotify"
+                if device.state.available is False:
+                    state = "unavailable"
+                elif device.state.available is True:
+                    if device.state.is_active is False:
+                        state = "idle"
+                    elif device.state.is_playing is True:
+                        state = "playing"
+                    elif device.state.is_playing is False:
+                        state = "paused"
+                    else:
+                        state = "available"
+            elif isinstance(device, Light):
+                device_type = "light"
+                source = "Home Assistant"
+                if device.state.on is True:
+                    state = "on"
+                elif device.state.on is False:
+                    state = "off"
+            elif isinstance(device, TV):
+                device_type = "tv"
+                source = "ADB"
+            else:
+                raise TypeError(f"Unsupported registered device: {device_id}")
+
+            inventory.append(
+                {
+                    "id": device_id,
+                    "name": device.name.replace("_", " ").title(),
+                    "type": device_type,
+                    "state": state,
+                    "source": source,
+                }
+            )
+        return inventory
 
     def get_home_state(self) -> dict:
         return {
