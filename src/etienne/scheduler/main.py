@@ -15,11 +15,6 @@ POLL_INTERVAL_SECONDS = 60
 
 async def run_scheduler(home: Home, db_path: Path) -> None:
     """Execute due timers immediately, then check again every 60 seconds."""
-    logger.info(
-        "Scheduler started; checking for due timers every {} seconds",
-        POLL_INTERVAL_SECONDS,
-    )
-
     while True:
         try:
             await _process_speaker_timers(home, db_path)

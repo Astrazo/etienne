@@ -36,18 +36,18 @@ def build_chat(api: FastAPI) -> None:
                 result = await process_utterance(
                     text, api.state.home, api.state.ollama_client
                 )
-            answer = result.get("assistant_response")
-            if isinstance(answer, list):
-                answer = "\n".join(
+            assistant_response = result.get("assistant_response")
+            if isinstance(assistant_response, list):
+                assistant_response = "\n".join(
                     block if isinstance(block, str) else block.get("text", "")
-                    for block in answer
+                    for block in assistant_response
                 )
-            answer = answer or "No response was returned. Please check the server logs."
+            assistant_response = assistant_response or "No response was returned. Please check the server logs."
         except TimeoutError:
-            answer = "The request timed out. An action may still have completed; check your device before retrying."
+            assistant_response = "The request timed out. An action may still have completed; check your device before retrying."
         except Exception:
             logger.exception("Web chat request failed")
-            answer = "Etienne couldn’t complete that request. Check the server and your device before trying again."
+            assistant_response = "Etienne couldn’t complete that request. Check the server and your device before trying again."
         finally:
             pending = False
             send_button.enable()
@@ -56,7 +56,7 @@ def build_chat(api: FastAPI) -> None:
             status.text = ""
         with conversation:
             # NiceGUI escapes message text. Model output is never rendered as HTML.
-            ui.chat_message(str(answer), name="Etienne").props(
+            ui.chat_message(str(assistant_response), name="Etienne").props(
                 "bg-color=grey-10 text-color=grey-2"
             )
         scroll.scroll_to(percent=1)

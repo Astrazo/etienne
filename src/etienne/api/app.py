@@ -4,6 +4,7 @@ import asyncio
 from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
+from loguru import logger
 
 from ..assistant.laya_client import LayaClient
 from ..assistant.ollama_client import OllamaClient
@@ -21,11 +22,12 @@ def init_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-
         # Init DB and set path
         app.state.db_path = init_db()
+        logger.info("Database initialised")
 
         # Init home and laya
+        logger.info("Initialising home")
         await home.initialise(app.state.db_path)
         # laya_client.initialise()
 
@@ -39,8 +41,10 @@ def init_app(
             run_scheduler(home, app.state.db_path), name="home-scheduler"
         )
         app.state.scheduler = scheduler
+        logger.info("Home scheduler initialised")
 
         try:
+            logger.info("Welcome home!")
             yield
         finally:
             try:

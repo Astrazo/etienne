@@ -3,10 +3,12 @@
 import json
 from time import perf_counter
 
+from loguru import logger
+
+from ..home import Home
 from .ollama_client import OllamaClient
 from .ollama_client.models import add_device_selection
 from .ollama_client.routes import handle_device_request, handle_general_request
-from ..home import Home
 
 
 async def process_utterance(
@@ -95,4 +97,5 @@ async def process_utterance(
 
     response["duration_seconds"] = round(perf_counter() - start_time, 3)
     response["utterance"] = utterance
+    logger.log("INFO", response)
     return response

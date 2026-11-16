@@ -27,6 +27,7 @@ dependencies = [
     "smolagents[litellm,toolkit]>=1.26.0",
     "spotipy>=2.26.0",
     "typer>=0.27.2",
+    "uvicorn>=0.54.0",
     "tzdata>=2026.6",
     "webcolors>=25.10.0",
 ]

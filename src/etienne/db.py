@@ -3,6 +3,7 @@
 import sqlite3
 from contextlib import closing
 from pathlib import Path
+from loguru import logger
 
 
 def init_db(path: str | Path | None = None) -> Path:
@@ -28,6 +29,7 @@ def init_db(path: str | Path | None = None) -> Path:
             )
             """
         )
+
         # A separate index also applies the constraint to existing databases.
         connection.execute(
             """

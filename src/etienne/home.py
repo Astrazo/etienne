@@ -1,4 +1,5 @@
 import asyncio
+from loguru import logger
 from pathlib import Path
 from typing import Literal
 
@@ -33,6 +34,7 @@ class Home:
 
     async def initialise(self, db_path: Path):
         # Connect to Tvs via all adb clients
+        logger.info("Connecting to {} TVs", len(self.adb_clients))
         for adb_client in self.adb_clients.values():
             await adb_client.connect()
 
@@ -40,9 +42,17 @@ class Home:
         self._init_lights()
         self._init_speakers(db_path)
         self._init_tvs()
+        logger.info(
+            "Home devices initialised: {} lights, {} speakers, {} TVs",
+            len(self.lights),
+            len(self.speakers),
+            len(self.tvs),
+        )
 
         # Build the initial state for integrations that support state refreshes.
+        logger.info("Refreshing device states")
         await self.refresh_home_state({"speakers"})
+        logger.info("Device states refreshed")
 
     def _init_lights(self):
         for name, entity_id in self.config.lights.items():

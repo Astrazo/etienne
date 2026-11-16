@@ -665,6 +665,7 @@ dependencies = [
     { name = "spotipy" },
     { name = "typer" },
     { name = "tzdata" },
+    { name = "uvicorn" },
     { name = "webcolors" },
 ]
 
@@ -690,6 +691,7 @@ requires-dist = [
     { name = "spotipy", specifier = ">=2.26.0" },
     { name = "typer", specifier = ">=0.27.2" },
     { name = "tzdata", specifier = ">=2026.6" },
+    { name = "uvicorn", specifier = ">=0.54.0" },
     { name = "webcolors", specifier = ">=25.10.0" },
 ]
 

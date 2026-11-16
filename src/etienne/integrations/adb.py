@@ -22,14 +22,18 @@ class UIElement:
     selected: bool
     bounds: str
 
-
+# One ADBClient per TV in the house.
 class ADBClient:
     def __init__(
         self,
+        tv_name: str,
         host: str,
         port: int = 5555,
         key_path: str = ".adb/adbkey",
     ):
+        self.tv_name = tv_name
+        self.host = host
+        self.port = port
         self.device = AdbDeviceTcpAsync(
             host,
             port,
@@ -59,8 +63,13 @@ class ADBClient:
                 rsa_keys=[signer],
                 auth_timeout_s=10.0,
             )
-        except TcpTimeoutException, AdbConnectionError:
-            logger.warning("Can't connect to TV")
+            logger.info("Connected to TV {} via ADB", self.tv_name)
+        except (TcpTimeoutException, AdbConnectionError) as error:
+            logger.warning(
+                "Could not connect to TV {} via ADB: {}",
+                self.tv_name,
+                error,
+            )
 
     async def shell(self, command: str) -> str:
         return await self.device.shell(command)
