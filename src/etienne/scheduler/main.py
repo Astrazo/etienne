@@ -51,7 +51,7 @@ async def _process_speaker_timers(home: Home, db_path: Path) -> None:
                 "Triggered speaker timer {}: {} speaker {} ({})",
                 timer_id,
                 action,
-                speaker.name,
+                speaker.device_id,
                 device_id,
             )
 

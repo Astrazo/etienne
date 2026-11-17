@@ -17,12 +17,14 @@ TVApp = Literal[
 class TV:
     def __init__(
         self,
-        name: str,
+        device_id: str,
         adb_client: ADBClient,
         ha_entity_id: str | None = None,
         ha_client: HomeAssistantClient | None = None,
+        display_name: str | None = None,
     ):
-        self.name = name
+        self.device_id = device_id
+        self.display_name = display_name or device_id.replace("_", " ").title()
         self.adb_client = adb_client
         self.ha_entity_id = ha_entity_id
         self.ha_client = ha_client

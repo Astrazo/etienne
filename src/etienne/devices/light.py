@@ -12,11 +12,13 @@ from .models import LightState
 class Light:
     def __init__(
         self,
-        name: str,
+        device_id: str,
         ha_entity_id: str,
         ha_client: HomeAssistantClient,
+        display_name: str | None = None,
     ):
-        self.name = name
+        self.device_id = device_id
+        self.display_name = display_name or device_id.replace("_", " ").title()
         self.ha_entity_id = ha_entity_id
         self.ha_client = ha_client
 

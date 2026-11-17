@@ -6,20 +6,42 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class LightConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ha_entity_id: str = Field(min_length=1)
+    display_name: str | None = None
+
+
+class LightGroupConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    display_name: str | None = None
+    devices: dict[str, LightConfig] = Field(default_factory=dict)
+
+
+class SpeakerConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    spotify_id: str = Field(min_length=1)
+    display_name: str | None = None
+
+
 class TVConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     host: str = Field(min_length=1)
     port: int = Field(default=5555, ge=1, le=65535)
     ha_entity_id: str | None = None
+    display_name: str | None = None
 
 
 class HomeConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     home_assistant_url: str
-    lights: dict[str, str] = Field(default_factory=dict)
-    speakers: dict[str, str] = Field(default_factory=dict)
+    lights: dict[str, LightGroupConfig] = Field(default_factory=dict)
+    speakers: dict[str, SpeakerConfig] = Field(default_factory=dict)
     tvs: dict[str, TVConfig] = Field(default_factory=dict)
 
 

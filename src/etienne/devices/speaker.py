@@ -17,14 +17,16 @@ class Speaker:
 
     def __init__(
         self,
-        name: str,
+        device_id: str,
         spotify_id: str,
         spotify_client: SpotifyClient,
         db_path: Path,
         ha_entity_id: str | None = None,
         ha_client: HomeAssistantClient | None = None,
+        display_name: str | None = None,
     ):
-        self.name = name
+        self.device_id = device_id
+        self.display_name = display_name or device_id.replace("_", " ").title()
         self.ha_entity_id = ha_entity_id
         self.ha_client = ha_client
         self.spotify_id = spotify_id
@@ -152,14 +154,14 @@ class Speaker:
             self.spotify_id,
         )
 
-        return f"Successfully resumed playback on {self.name} speaker."
+        return f"Successfully resumed playback on {self.device_id} speaker."
 
     @validate_call
     async def pause(self) -> str:
         """Pause the current playback."""
         await asyncio.to_thread(self.spotify_client.pause_playback, self.spotify_id)
 
-        return f"Successfully paused playback of on {self.name} speaker."
+        return f"Successfully paused playback of on {self.device_id} speaker."
 
     @validate_call
     async def repeat(self, state: Literal["track", "context", "off"]) -> str:
@@ -177,7 +179,7 @@ class Speaker:
             state,
         )
 
-        return f"Successfully set repeat mode to {state} on {self.name} speaker."
+        return f"Successfully set repeat mode to {state} on {self.device_id} speaker."
 
     @validate_call
     async def shuffle(self, state: bool) -> str:
@@ -192,7 +194,7 @@ class Speaker:
             state,
         )
 
-        return f"Successfully set shuffle mode to {state} on {self.name} speaker."
+        return f"Successfully set shuffle mode to {state} on {self.device_id} speaker."
 
     @validate_call
     async def add_to_playback_queue(self, tracks_input: list[TrackInput]) -> str:
@@ -259,7 +261,7 @@ class Speaker:
             )
 
         return (
-            f"Successfully navigated to the {direction} track on {self.name} speaker."
+            f"Successfully navigated to the {direction} track on {self.device_id} speaker."
         )
 
     @validate_call
@@ -305,14 +307,14 @@ class Speaker:
         await asyncio.to_thread(
             save_speaker_timer,
             self.db_path,
-            self.name,
+            self.device_id,
             action,
             scheduled_time,
         )
         if timer_minutes:
-            return f"Successfully set a timer on {self.name} speaker to {action} in {timer_minutes} minutes."
+            return f"Successfully set a timer on {self.device_id} speaker to {action} in {timer_minutes} minutes."
         else:
-            return f"Successfully set a timer on {self.name} speaker to {action} at {scheduled_time}."
+            return f"Successfully set a timer on {self.device_id} speaker to {action} at {scheduled_time}."
 
     @validate_call
     async def cancel_timer(
@@ -343,13 +345,13 @@ class Speaker:
         active_timers = await asyncio.to_thread(
             get_active_timers,
             db_path=self.db_path,
-            speaker_name=self.name,
+            speaker_name=self.device_id,
             action=action,
             time=trigger_time,
         )
 
         if not active_timers:
-            return f"No timers match the supplied filters for the {self.name} speaker."
+            return f"No timers match the supplied filters for the {self.device_id} speaker."
 
         # If multiple timers match the query and we aren't cancelling all
         if len(active_timers) > 1 and not cancel_all:
@@ -358,7 +360,7 @@ class Speaker:
                 scheduled_time = datetime.fromtimestamp(execute_at, UTC)
                 options.append(f"{timer_action} at {scheduled_time.isoformat()}")
             return (
-                f"Multiple timers match for the {self.name} speaker: "
+                f"Multiple timers match for the {self.device_id} speaker: "
                 + "; ".join(options)
                 + ". No timers were cancelled. Ask the user which timer to cancel."
             )
@@ -369,16 +371,16 @@ class Speaker:
             delete_speaker_timers, self.db_path, timer_ids
         )
         if cancel_all:
-            return f"Cancelled {deleted_count} matching timer(s) on the {self.name} speaker."
+            return f"Cancelled {deleted_count} matching timer(s) on the {self.device_id} speaker."
 
         if deleted_count == 0:
-            return f"The matching timer on the {self.name} speaker no longer exists. No timers were cancelled."
+            return f"The matching timer on the {self.device_id} speaker no longer exists. No timers were cancelled."
 
         # If not cancel all, get info on the returned active timer, and send it up
         _, _, timer_action, execute_at = active_timers[0]
         scheduled_time = datetime.fromtimestamp(execute_at, UTC)
         return (
-            f"The {timer_action} timer on the {self.name} speaker set for "
+            f"The {timer_action} timer on the {self.device_id} speaker set for "
             f"{scheduled_time.isoformat()} has been cancelled."
         )
 
@@ -405,19 +407,19 @@ class Speaker:
         active_timers = await asyncio.to_thread(
             get_active_timers,
             db_path=self.db_path,
-            speaker_name=self.name,
+            speaker_name=self.device_id,
             action=action,
             time=trigger_time,
         )
 
         if not active_timers:
-            return f"No timers match the supplied filters for the {self.name} speaker."
+            return f"No timers match the supplied filters for the {self.device_id} speaker."
 
         options = []
         for _, _, timer_action, execute_at in active_timers:
             scheduled_time = datetime.fromtimestamp(execute_at, UTC)
             options.append(f"{timer_action} at {scheduled_time.isoformat()}")
-        return f"Timers on the {self.name} speaker: " + "; ".join(options) + "."
+        return f"Timers on the {self.device_id} speaker: " + "; ".join(options) + "."
 
     async def get_state(self, snapshot: dict[str, Any] | None = None) -> SpeakerState:
         """Read current playback without storing it on this speaker.

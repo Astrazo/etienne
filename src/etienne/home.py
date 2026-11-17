@@ -9,7 +9,7 @@ from requests.exceptions import RequestException
 from spotipy.exceptions import SpotifyException
 
 from .config import HomeConfig
-from .devices import TV, Device, Light, Speaker
+from .devices import TV, Device, Light, LightGroup, Speaker
 from .integrations import ADBClient, HomeAssistantClient, SpotifyClient
 
 
@@ -29,6 +29,7 @@ class Home:
         self.lights: dict[str, Light] = {}
         self.speakers: dict[str, Speaker] = {}
         self.tvs: dict[str, TV] = {}
+        self.light_groups: dict[str, LightGroup] = {}
 
     async def initialise(self, db_path: Path):
         # Connect to Tvs via all adb clients
@@ -40,44 +41,67 @@ class Home:
         self._init_lights()
         self._init_speakers(db_path)
         self._init_tvs()
+
+        # Groups reference the devices created above; they don't create copies.
+        self._init_light_groups()
         logger.info(
-            "Home devices initialised: {} lights, {} speakers, {} TVs",
+            "Home devices initialised: {} lights, {} speakers, {} TVs, {} light groups",
             len(self.lights),
             len(self.speakers),
             len(self.tvs),
+            len(self.light_groups),
         )
 
     def _init_lights(self):
-        for name, entity_id in self.config.lights.items():
-            self.lights[name] = Light(
-                name=name,
-                ha_entity_id=entity_id,
-                ha_client=self.ha_client,
-            )
+        for group_id, group_config in self.config.lights.items():
+            for local_id, light_config in group_config.devices.items():
+                # Include the group so IDs like "main" can appear in several rooms.
+                device_id = f"{group_id}.devices.{local_id}"
+                self.lights[device_id] = Light(
+                    device_id=device_id,
+                    ha_entity_id=light_config.ha_entity_id,
+                    ha_client=self.ha_client,
+                    display_name=light_config.display_name,
+                )
 
     def _init_speakers(self, db_path: Path):
-        for name, spotify_id in self.config.speakers.items():
-            self.speakers[name] = Speaker(
-                name=name,
-                spotify_id=spotify_id,
+        for device_id, speaker_config in self.config.speakers.items():
+            self.speakers[device_id] = Speaker(
+                device_id=device_id,
+                spotify_id=speaker_config.spotify_id,
                 spotify_client=self.spotify_client,
                 db_path=db_path,
+                display_name=speaker_config.display_name,
             )
 
     def _init_tvs(self):
-        for name, config in self.config.tvs.items():
-            self.tvs[name] = TV(
-                name,
-                adb_client=self.adb_clients[name],
+        for device_id, config in self.config.tvs.items():
+            self.tvs[device_id] = TV(
+                device_id=device_id,
+                adb_client=self.adb_clients[device_id],
                 ha_entity_id=config.ha_entity_id,
                 ha_client=self.ha_client,
+                display_name=config.display_name,
+            )
+
+    def _init_light_groups(self):
+        for group_id, group_config in self.config.lights.items():
+            devices = {}
+            for local_id in group_config.devices:
+                device_id = f"{group_id}.devices.{local_id}"
+                devices[local_id] = self.lights[device_id]
+
+            self.light_groups[group_id] = LightGroup(
+                group_id=group_id,
+                devices=devices,
+                display_name=group_config.display_name,
             )
 
     async def close(self) -> None:
         await self.ha_client.close()
 
     def get_device_map(self) -> dict[str, Device]:
-        """Return the initialized devices by their canonical category:name keys."""
+        """Return the initialized devices by their canonical category:device_id keys."""
         devices = {}
 
         # For each device type
@@ -85,10 +109,10 @@ class Home:
             # Grab the dictionary lookup for each this device type
             device_group = getattr(self, device_type)
 
-            # For each device name and object in the dicionary
-            for device_name, device in device_group.items():
+            # For each device identifier and object in the dictionary
+            for device_id, device in device_group.items():
                 # Create the key (speaker:bedroom) for example
-                key = f"{device_type}:{device_name}"
+                key = f"{device_type}:{device_id}"
 
                 # Create a key pair linking that key to the specific device so functions can be called on it
                 devices[key] = device
@@ -119,13 +143,13 @@ class Home:
 
         # Read each registered light directly from Home Assistant.
         if "lights" in device_types:
-            for name, light in self.lights.items():
-                home_state[f"lights:{name}"] = await self._read_device_state(light)
+            for device_id, light in self.lights.items():
+                home_state[f"lights:{device_id}"] = await self._read_device_state(light)
 
         # Read each registered TV directly from Home Assistant.
         if "tvs" in device_types:
-            for name, tv in self.tvs.items():
-                home_state[f"tvs:{name}"] = await self._read_device_state(tv)
+            for device_id, tv in self.tvs.items():
+                home_state[f"tvs:{device_id}"] = await self._read_device_state(tv)
 
         return home_state
 
@@ -139,8 +163,8 @@ class Home:
         except SpotifyException, RequestException, TimeoutError:
             logger.warning("Could not read current Spotify state")
             speaker_states = {}
-            for name in self.speakers:
-                speaker_states[f"speakers:{name}"] = {
+            for device_id in self.speakers:
+                speaker_states[f"speakers:{device_id}"] = {
                     "state": "unavailable",
                     "error": "Could not read current Spotify state.",
                 }
@@ -148,9 +172,9 @@ class Home:
 
         # Convert the response to each speaker's current playback details.
         speaker_states = {}
-        for name, speaker in self.speakers.items():
+        for device_id, speaker in self.speakers.items():
             state = await speaker.get_state(snapshot) # Get state requires a snapshot to extract data from
-            speaker_states[f"speakers:{name}"] = state.model_dump(mode="json")
+            speaker_states[f"speakers:{device_id}"] = state.model_dump(mode="json")
 
         return speaker_states
 
@@ -171,7 +195,7 @@ class Home:
             TimeoutError,
             ValidationError,
         ):
-            logger.warning("Could not read current state for {}", device.name)
+            logger.warning("Could not read current state for {}", device.device_id)
             return {
                 "state": "unavailable",
                 "error": "Could not read the device's current state.",
@@ -214,7 +238,7 @@ class Home:
             # Build the card data from this device and its live reading.
             entry = {
                 "id": device_id,
-                "name": device.name.replace("_", " ").title(),
+                "name": device.display_name,
                 "type": device_type,
                 "state": state,
                 "source": source,

@@ -14,7 +14,7 @@ from nicegui.testing import user_simulation
 from pydantic import ValidationError
 
 from etienne.config import HomeConfig
-from etienne.devices import Light
+from etienne.devices import Light, LightGroup
 from etienne.devices.models import LightState
 from etienne.home import Home
 from etienne.web import devices as devices_page
@@ -137,6 +137,9 @@ class LightControlsTests(unittest.IsolatedAsyncioTestCase):
         )
         self.light = Light("desk", "light.desk", self.ha)
         home.lights["desk"] = self.light
+        home.light_groups["office"] = LightGroup(
+            "office", {"main": self.light}, display_name="Office Lights"
+        )
         api = FastAPI()
         api.state.home = home
         self.settings = {}
@@ -165,6 +168,32 @@ class LightControlsTests(unittest.IsolatedAsyncioTestCase):
                 return
             await asyncio.sleep(0.02)
         self.fail(f"Toggle did not settle at {expected}")
+
+    async def test_group_card_opens_for_one_light_and_tracks_confirmed_state(self):
+        group = next(iter(self.user.find(marker="light-group-office").elements))
+        self.assertTrue(group.value)
+        self.assertEqual(group._props["caption"], "0 of 1 lights on")
+
+        self.ha.get_state.return_value = {"state": "on"}
+        self.user.find(marker="power-lights:desk").click()
+        await self.wait_for_power(True)
+
+        group = next(iter(self.user.find(marker="light-group-office").elements))
+        self.assertEqual(group._props["caption"], "1 of 1 lights on")
+        self.ha.call_service.assert_awaited_once_with(
+            "light", "turn_on", {"entity_id": "light.desk"}
+        )
+
+    async def test_refresh_preserves_collapsed_group_without_sending_commands(self):
+        group = next(iter(self.user.find(marker="light-group-office").elements))
+        group.set_value(False)
+        await asyncio.sleep(0)
+        self.user.find("Refresh states").click()
+        await asyncio.sleep(0.1)
+
+        group = next(iter(self.user.find(marker="light-group-office").elements))
+        self.assertFalse(group.value)
+        self.ha.call_service.assert_not_awaited()
 
     async def test_settings_save_without_actions_then_toggle_forwards_options(self):
         self.user.find(marker="settings-lights:desk").click()
