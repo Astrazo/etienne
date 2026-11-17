@@ -115,7 +115,7 @@ def register_web(api: FastAPI) -> None:
                 with ui.tab_panel("chat"):
                     build_chat(api)
                 with ui.tab_panel("devices"):
-                    refresh_devices = build_devices(api)
+                    refresh_devices = build_devices(api, storage)
                 with ui.tab_panel("schedule"):
                     tv_names = [
                         name.replace("_", " ").title() for name in api.state.home.tvs
@@ -124,13 +124,13 @@ def register_web(api: FastAPI) -> None:
                 with ui.tab_panel("settings"):
                     build_settings(storage, tabs, navigation)
 
-        def tab_changed(event):
+        async def tab_changed(event):
             if event.value == "devices":
-                refresh_devices()
+                await refresh_devices()
 
         navigation.on_value_change(tab_changed)
         if navigation.value == "devices":
-            refresh_devices()
+            await refresh_devices()
 
     ui.run_with(
         api,

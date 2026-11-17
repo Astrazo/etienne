@@ -4,6 +4,7 @@ from typing import Literal
 
 from ..integrations import ADBClient, HomeAssistantClient
 from ..integrations.adb import UIElement
+from .models import TvState
 
 TVApp = Literal[
     "disney",
@@ -34,25 +35,25 @@ class TV:
         }
 
     async def up(self) -> None:
-        await self.adb.send_key("KEYCODE_DPAD_UP")
+        await self.adb_client.send_key("KEYCODE_DPAD_UP")
 
     async def down(self) -> None:
-        await self.adb.send_key("KEYCODE_DPAD_DOWN")
+        await self.adb_client.send_key("KEYCODE_DPAD_DOWN")
 
     async def left(self) -> None:
-        await self.adb.send_key("KEYCODE_DPAD_LEFT")
+        await self.adb_client.send_key("KEYCODE_DPAD_LEFT")
 
     async def right(self) -> None:
-        await self.adb.send_key("KEYCODE_DPAD_RIGHT")
+        await self.adb_client.send_key("KEYCODE_DPAD_RIGHT")
 
     async def select(self) -> None:
-        await self.adb.send_key("KEYCODE_DPAD_CENTER")
+        await self.adb_client.send_key("KEYCODE_DPAD_CENTER")
 
     async def back(self) -> None:
-        await self.adb.send_key("KEYCODE_BACK")
+        await self.adb_client.send_key("KEYCODE_BACK")
 
     async def home(self) -> None:
-        await self.adb.send_key("KEYCODE_HOME")
+        await self.adb_client.send_key("KEYCODE_HOME")
 
     async def open_app(self, app: TVApp) -> None:
         """Open an installed app
@@ -80,7 +81,15 @@ class TV:
             await self.adb_client.send_key("KEYCODE_DPAD_CENTER")
 
     async def focused_element(self) -> UIElement | None:
-        return await self.adb.get_focused_element()
+        return await self.adb_client.get_focused_element()
+
+    async def get_state(self) -> TvState:
+        """Read HA's latest known TV state; ADB is used for controls and UI inspection."""
+        if self.ha_client is None or self.ha_entity_id is None:
+            raise NotImplementedError("TV state reading requires an HA entity")
+
+        response = await self.ha_client.get_state(self.ha_entity_id)
+        return TvState.model_validate(response)
 
     def get_tools(self) -> list[Callable]:
         """Return the light operations available to ollama."""

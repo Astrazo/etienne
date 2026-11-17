@@ -38,9 +38,9 @@ body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
 .error { color: #f0ad9b; font-size: 12px; }
 .error:empty { display: none; }
 .device-search { width: 360px; max-width: 100%; }
-.device-filter { min-width: 180px; }
 .device-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; width: 100%; }
 .device-card { width: 100%; padding: 20px; }
+.light-editor { width: 420px; max-width: calc(100vw - 32px); padding: 24px; }
 .settings { max-width: 760px; width: 100%; }
 .setting-row { width: 100%; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
 .empty { width: 100%; align-items: center; text-align: center; padding: 64px 24px; }
@@ -85,6 +85,5 @@ body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
   .chat { height: calc(100dvh - 265px); min-height: 400px; }
   .chat > .justify-between > div:last-child { display: none; }
   .q-message { max-width: 95%; }
-  .device-filter { flex: 1; }
   .programme-entry { gap: 8px; }
 }

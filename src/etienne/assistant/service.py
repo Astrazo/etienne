@@ -20,12 +20,8 @@ async def process_utterance(
     device_map = home.get_device_map()
     QueryClassification = add_device_selection(tuple(device_map))
 
-    # Update home context so the model can see all active devices
-    await home.refresh_home_state({"speakers"})
-
-    # If the device type is a speaker, pass in speaker context
-    # TODO may need to become a tool request if speaker context is required for non-speaker requests
-    home_context = home.get_home_state()
+    # Read current observations for classification, including changes made outside Etienne.
+    home_context = await home.get_home_state()
 
     # Classify the route and whether the user is requesting information.
     classifier_resp = await ollama_client.structured_response_langchain(
@@ -79,7 +75,6 @@ async def process_utterance(
                 utterance=utterance,
                 device_key=device_key,
                 device=device_map[device_key],
-                home=home,
                 ollama_client=ollama_client,
             )
         case "general":

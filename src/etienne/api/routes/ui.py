@@ -7,4 +7,4 @@ ui_router = APIRouter(tags=["Devices"])
 
 @ui_router.get("/api/devices")
 async def devices(request: Request):
-    return {"devices": request.app.state.home.get_device_inventory()}
+    return {"devices": await request.app.state.home.get_device_inventory()}

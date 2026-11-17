@@ -22,6 +22,7 @@ class UIElement:
     selected: bool
     bounds: str
 
+
 # One ADBClient per TV in the house.
 class ADBClient:
     def __init__(

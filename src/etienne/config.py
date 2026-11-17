@@ -11,6 +11,7 @@ class TVConfig(BaseModel):
 
     host: str = Field(min_length=1)
     port: int = Field(default=5555, ge=1, le=65535)
+    ha_entity_id: str | None = None
 
 
 class HomeConfig(BaseModel):
@@ -28,8 +29,6 @@ def load_config(path: Path = Path("config.toml")) -> HomeConfig:
         with path.open("rb") as config_file:
             data = tomllib.load(config_file)
     except FileNotFoundError:
-        raise FileNotFoundError(
-            f"Missing required {path} file"
-        ) from None
+        raise FileNotFoundError(f"Missing required {path} file") from None
 
     return HomeConfig.model_validate(data)

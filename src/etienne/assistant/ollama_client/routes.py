@@ -5,8 +5,7 @@ from typing import Any
 from langchain_core.messages import AIMessage, ToolMessage
 from loguru import logger
 
-from ...devices import ToolProvider
-from ...home import Home
+from ...devices import Device
 from .general_tools import get_general_tools
 from .main import OllamaClient
 
@@ -89,8 +88,7 @@ async def handle_clarification_request(
 async def handle_device_request(
     utterance: str,
     device_key: str,
-    device: ToolProvider,
-    home: Home,
+    device: Device,
     ollama_client: OllamaClient,
 ) -> dict[str, Any]:
     """Execute the request using the selected device's tools and return its response."""
@@ -129,10 +127,6 @@ async def handle_device_request(
         if isinstance(message, AIMessage)
         for tool_call in message.tool_calls
     ]
-
-    # Refresh the shared Spotify state after a speaker action.
-    if device_type == "speakers" and executed_actions:
-        await home.refresh_home_state({"speakers"})
 
     return {
         "route": "device",

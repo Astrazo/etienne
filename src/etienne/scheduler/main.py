@@ -58,8 +58,5 @@ async def _process_speaker_timers(home: Home, db_path: Path) -> None:
             # Delete the timer after it's been triggered
             await asyncio.to_thread(delete_speaker_timers, db_path, [timer_id])
 
-            # Update home state
-            await home.refresh_home_state({"speakers"})
-
         except Exception:  # noqa: BLE001 - isolate device failures
             logger.exception("Speaker timer {} failed; keeping it for retry", timer_id)

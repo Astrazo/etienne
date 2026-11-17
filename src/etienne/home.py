@@ -1,10 +1,15 @@
 import asyncio
-from loguru import logger
 from pathlib import Path
 from typing import Literal
 
+import httpx
+from loguru import logger
+from pydantic import ValidationError
+from requests.exceptions import RequestException
+from spotipy.exceptions import SpotifyException
+
 from .config import HomeConfig
-from .devices import TV, Light, Speaker, ToolProvider
+from .devices import TV, Device, Light, Speaker
 from .integrations import ADBClient, HomeAssistantClient, SpotifyClient
 
 
@@ -25,13 +30,6 @@ class Home:
         self.speakers: dict[str, Speaker] = {}
         self.tvs: dict[str, TV] = {}
 
-    @property
-    def active_spotify_speaker(self) -> Speaker | None:
-        return next(
-            (speaker for speaker in self.speakers.values() if speaker.state.is_active),
-            None,
-        )
-
     async def initialise(self, db_path: Path):
         # Connect to Tvs via all adb clients
         logger.info("Connecting to {} TVs", len(self.adb_clients))
@@ -48,11 +46,6 @@ class Home:
             len(self.speakers),
             len(self.tvs),
         )
-
-        # Build the initial state for integrations that support state refreshes.
-        logger.info("Refreshing device states")
-        await self.refresh_home_state({"speakers"})
-        logger.info("Device states refreshed")
 
     def _init_lights(self):
         for name, entity_id in self.config.lights.items():
@@ -72,59 +65,18 @@ class Home:
             )
 
     def _init_tvs(self):
-        for name in self.config.tvs:
-            self.tvs[name] = TV(name, adb_client=self.adb_clients[name])
-
-    async def refresh_home_state(
-        self,
-        device_types: set[Literal["speakers", "lights", "tvs"]],
-    ) -> None:
-        """Refresh state for the requested device collections."""
-        unsupported_types = device_types - {"speakers"}
-        if unsupported_types:
-            names = ", ".join(sorted(unsupported_types))
-            raise NotImplementedError(f"State refresh is not implemented for: {names}")
-
-        refresh_tasks = []
-
-        if "speakers" in device_types:
-            refresh_tasks.append(self._refresh_speaker_states())
-        if "lights" in device_types:
-            pass
-        if "tvs" in device_types:
-            pass
-
-        await asyncio.gather(*refresh_tasks)
-
-    async def _refresh_speaker_states(self) -> None:
-
-        snapshot = await asyncio.to_thread(self.spotify_client.get_status_snapshot)
-
-        spotify_devices = snapshot["devices"]
-        current_playback = snapshot["current_playback"]
-
-        for speaker in self.speakers.values():
-            # Get the device info
-            spotify_device = next(
-                (
-                    device
-                    for device in spotify_devices
-                    if device.get("id") == speaker.spotify_id
-                ),
-                None,
+        for name, config in self.config.tvs.items():
+            self.tvs[name] = TV(
+                name,
+                adb_client=self.adb_clients[name],
+                ha_entity_id=config.ha_entity_id,
+                ha_client=self.ha_client,
             )
-
-            is_active = spotify_device is not None and spotify_device.get(
-                "is_active", False
-            )
-            speaker_playback = current_playback if is_active else None
-
-            speaker.refresh_state(spotify_device, speaker_playback)
 
     async def close(self) -> None:
         await self.ha_client.close()
 
-    def get_device_map(self) -> dict[str, ToolProvider]:
+    def get_device_map(self) -> dict[str, Device]:
         """Return the initialized devices by their canonical category:name keys."""
         devices = {}
 
@@ -143,70 +95,135 @@ class Home:
 
         return devices
 
-    def get_device_inventory(self) -> list[dict]:
-        """Describe the same registered objects for the UI and HTTP API.
+    async def get_home_state(
+        self,
+        device_types: set[Literal["speakers", "lights", "tvs"]] | None = None,
+    ) -> dict[str, dict]:
+        """Read live state for the requested device types, or all types if omitted."""
 
-        This is a snapshot of last known state, not discovery or a network refresh.
-        Integrations update the device objects through refresh_home_state().
-        """
+        # Refresh everything if no device types are sent
+        if device_types is None:
+            device_types = {"speakers", "lights", "tvs"}
+
+        # Check the requested types before making any device calls.
+        for device_type in device_types:
+            if device_type not in ("speakers", "lights", "tvs"):
+                raise ValueError(f"Unknown device type: {device_type}")
+
+        home_state = {}
+
+        # Speakers share one Spotify response for this request.
+        if "speakers" in device_types and self.speakers:
+            speaker_states = await self._read_speaker_states()
+            home_state.update(speaker_states)
+
+        # Read each registered light directly from Home Assistant.
+        if "lights" in device_types:
+            for name, light in self.lights.items():
+                home_state[f"lights:{name}"] = await self._read_device_state(light)
+
+        # Read each registered TV directly from Home Assistant.
+        if "tvs" in device_types:
+            for name, tv in self.tvs.items():
+                home_state[f"tvs:{name}"] = await self._read_device_state(tv)
+
+        return home_state
+
+    async def _read_speaker_states(self) -> dict[str, dict]:
+        """Fetch Spotify once, then read each registered speaker from that response."""
+        try:
+            async with asyncio.timeout(10):
+                snapshot = await asyncio.to_thread(
+                    self.spotify_client.get_status_snapshot
+                )
+        except SpotifyException, RequestException, TimeoutError:
+            logger.warning("Could not read current Spotify state")
+            speaker_states = {}
+            for name in self.speakers:
+                speaker_states[f"speakers:{name}"] = {
+                    "state": "unavailable",
+                    "error": "Could not read current Spotify state.",
+                }
+            return speaker_states
+
+        # Convert the response to each speaker's current playback details.
+        speaker_states = {}
+        for name, speaker in self.speakers.items():
+            state = await speaker.get_state(snapshot) # Get state requires a snapshot to extract data from
+            speaker_states[f"speakers:{name}"] = state.model_dump(mode="json")
+
+        return speaker_states
+
+    async def _read_device_state(self, device: Light | TV) -> dict:
+        """Read a device without letting an offline device fail the whole request."""
+        try:
+            async with asyncio.timeout(10):
+                state = await device.get_state()
+                return state.model_dump(mode="json")
+        except NotImplementedError:
+            return {
+                "state": "unknown",
+                "error": "Live state reading is not configured for this device.",
+            }
+        except (
+            httpx.HTTPError,
+            RequestException,
+            TimeoutError,
+            ValidationError,
+        ):
+            logger.warning("Could not read current state for {}", device.name)
+            return {
+                "state": "unavailable",
+                "error": "Could not read the device's current state.",
+            }
+
+    async def get_device_inventory(self) -> list[dict]:
+        """Read live state and build the device cards returned to the UI and API."""
+        home_state = await self.get_home_state()
+        devices = self.get_device_map()
         inventory = []
-        for device_id, device in self.get_device_map().items():
-            state = "unknown"
+
+        for device_id, device in devices.items():
+            snapshot = home_state[device_id]
+
+            # Identify the device type and the integration behind it.
             if isinstance(device, Speaker):
                 device_type = "speaker"
                 source = "Spotify"
-                if device.state.available is False:
-                    state = "unavailable"
-                elif device.state.available is True:
-                    if device.state.is_active is False:
-                        state = "idle"
-                    elif device.state.is_playing is True:
-                        state = "playing"
-                    elif device.state.is_playing is False:
-                        state = "paused"
-                    else:
-                        state = "available"
             elif isinstance(device, Light):
                 device_type = "light"
                 source = "Home Assistant"
-                if device.state.on is True:
-                    state = "on"
-                elif device.state.on is False:
-                    state = "off"
             elif isinstance(device, TV):
                 device_type = "tv"
-                source = "ADB"
+                source = "Home Assistant"
             else:
                 raise TypeError(f"Unsupported registered device: {device_id}")
 
-            inventory.append(
-                {
-                    "id": device_id,
-                    "name": device.name.replace("_", " ").title(),
-                    "type": device_type,
-                    "state": state,
-                    "source": source,
-                }
-            )
-        return inventory
+            # Lights and TVs report a state label directly. Spotify reports flags.
+            state = snapshot.get("state", "unknown")
+            if isinstance(device, Speaker) and "error" not in snapshot:
+                if not snapshot["available"]:
+                    state = "unavailable"
+                elif not snapshot["is_active"]:
+                    state = "idle"
+                elif snapshot["is_playing"]:
+                    state = "playing"
+                else:
+                    state = "paused"
 
-    def get_home_state(self) -> dict:
-        return {
-            "spotify": self._get_spotify_state(),
-            # "lights": ...,
-            # "tvs": ...,
-        }
-
-    def _get_spotify_state(self) -> dict:
-        active_speaker = self.active_spotify_speaker
-
-        if active_speaker is None:
-            return {
-                "active_speaker": None,
-                "playback": None,
+            # Build the card data from this device and its live reading.
+            entry = {
+                "id": device_id,
+                "name": device.name.replace("_", " ").title(),
+                "type": device_type,
+                "state": state,
+                "source": source,
             }
 
-        return {
-            "active_speaker": active_speaker.name,
-            "playback": active_speaker.state.model_dump(mode="json"),
-        }
+            # Include read failures so the UI can explain unavailable state.
+            if "error" in snapshot:
+                entry["error"] = snapshot["error"]
+
+            inventory.append(entry)
+
+        return inventory

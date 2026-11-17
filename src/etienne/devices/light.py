@@ -1,14 +1,12 @@
 from collections.abc import Callable
+from typing import Literal
 
 import webcolors
-from pydantic import BaseModel
+from pydantic import validate_call
 
 from etienne.integrations.home_assistant import HomeAssistantClient
 
-
-class LightState(BaseModel):
-    on: bool | None = None
-    colour: str | None = None
+from .models import LightState
 
 
 class Light:
@@ -19,15 +17,15 @@ class Light:
         ha_client: HomeAssistantClient,
     ):
         self.name = name
-        self.state = LightState()
         self.ha_entity_id = ha_entity_id
         self.ha_client = ha_client
 
+    @validate_call
     async def turn_on(
         self,
         effect: str | None = None,
         colour: str | None = None,
-        flash: str | None = None,
+        flash: Literal["short", "long"] | None = None,
     ) -> None:
         """Turn on this light with optional effects.
 
@@ -57,8 +55,7 @@ class Light:
         )
 
     async def turn_off(self) -> None:
-        """Turn off this light.
-        """
+        """Turn off this light."""
 
         # Build request body
         body = {"entity_id": self.ha_entity_id}
@@ -70,13 +67,13 @@ class Light:
             body,
         )
 
-    async def get_ha_state(self) -> dict:
-        """Get the state of the light as reported by HA.
+    async def get_state(self) -> LightState:
+        """Fetch HA's latest known state and validate the light-specific fields."""
+        if self.ha_client is None or self.ha_entity_id is None:
+            raise NotImplementedError("Light state reading requires an HA entity")
 
-        Returns:
-            dict: HA state dictionary.
-        """
-        return await self.ha_client.get_state(self.ha_entity_id)
+        response = await self.ha_client.get_state(self.ha_entity_id)
+        return LightState.model_validate(response)
 
     def get_tools(self) -> list[Callable]:
         """Return the light operations available to ollama."""

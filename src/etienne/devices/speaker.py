@@ -6,27 +6,10 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from pydantic import AwareDatetime, BaseModel, Field, validate_call
+from pydantic import AwareDatetime, Field, validate_call
 
 from ..integrations import HomeAssistantClient, SpotifyClient
-from .models import TrackInput
-
-
-class SpeakerState(BaseModel):
-    available: bool | None = None
-    is_active: bool | None = None
-    is_playing: bool | None = None
-
-    track_uri: str | None = None
-    track_name: str | None = None
-    artist_name: str | None = None
-
-    volume_percent: int | None = None
-    repeat_state: Literal["off", "track", "context"] | None = None
-    shuffle_state: bool | None = None
-
-    observed_at: datetime | None = None
-    pending_action: str | None = None
+from .models import SpeakerState, TrackInput
 
 
 class Speaker:
@@ -47,7 +30,6 @@ class Speaker:
         self.spotify_id = spotify_id
         self.spotify_client = spotify_client
         self.db_path = db_path
-        self.state = SpeakerState()
 
     @validate_call
     async def play_tracks(
@@ -437,21 +419,31 @@ class Speaker:
             options.append(f"{timer_action} at {scheduled_time.isoformat()}")
         return f"Timers on the {self.name} speaker: " + "; ".join(options) + "."
 
-    def refresh_state(
-        self,
-        device: dict[str, Any] | None,
-        playback_data: dict[str, Any] | None = None,
-    ) -> None:
+    async def get_state(self, snapshot: dict[str, Any] | None = None) -> SpeakerState:
+        """Read current playback without storing it on this speaker.
 
-        # Extract playback data if it exists
-        playback = playback_data or {}
+        Home may supply a Spotify response fetched within the same request so
+        listing several speakers doesn't repeat the account-wide API calls.
+        """
+
+        # We get data from a spotify client snapshot
+        if snapshot is None:
+            snapshot = await asyncio.to_thread(self.spotify_client.get_status_snapshot)
+        device = next(
+            (item for item in snapshot["devices"] if item.get("id") == self.spotify_id),
+            None,
+        )
+
+        # Unpack data from the device snapshot
+        is_active = device is not None and device.get("is_active", False)
+        playback = (snapshot.get("current_playback") or {}) if is_active else {}
         item = playback.get("item") or {}
         artists = item.get("artists") or []
 
-        # Make object based on playback
-        self.state = SpeakerState(
+        # Return speaker state object
+        return SpeakerState(
             available=device is not None,
-            is_active=playback_data is not None,
+            is_active=is_active,
             is_playing=playback.get("is_playing", False),
             track_uri=item.get("uri"),
             track_name=item.get("name"),

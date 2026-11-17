@@ -2,7 +2,7 @@
 
 from laya.agent import Agent, load
 
-from ...devices import ToolProvider
+from ...devices import Device
 from ...home import Home
 from .models import (
     DeviceNameDecision,
@@ -17,7 +17,7 @@ class LayaClient:
         self.agent: Agent = load("convaiinnovations/laya")
         return self.agent
 
-    def select_device(self, utterance: str, home: Home) -> tuple[ToolProvider, str]:
+    def select_device(self, utterance: str, home: Home) -> tuple[Device, str]:
         """Select the registered device targeted by the user's utterance.
 
         Args:

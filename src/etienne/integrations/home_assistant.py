@@ -17,13 +17,10 @@ class HomeAssistantClient:
         )
 
     async def get_state(self, entity_id: str) -> dict:
-        """Get the state of a device.
+        """Read HA's latest known entity state, without forcing a device refresh.
 
-        Args:
-            entity_id (str): _description_
-
-        Returns:
-            dict: _description_
+        Returns the raw state envelope: entity_id, state, attributes,
+        timestamps and context. Each device validates its own attributes.
         """
         response = await self.client.get(f"/api/states/{entity_id}")
         response.raise_for_status()
