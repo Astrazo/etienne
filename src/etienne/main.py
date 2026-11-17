@@ -1,8 +1,8 @@
 import os
 
 from dotenv import load_dotenv
-from spotipy import Spotify, SpotifyOAuth
 from loguru import logger
+from spotipy import Spotify, SpotifyOAuth
 
 from .api.app import init_app
 from .assistant.laya_client import LayaClient
