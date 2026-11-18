@@ -63,7 +63,12 @@ class HomeInitialisationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNot(living_room.devices["main"], kitchen.devices["main"])
         self.assertEqual(living_room.display_name, "Living Room Lights")
         self.assertEqual(living_room.group_id, "living_room")
-        self.assertEqual(living_room.devices["main"].device_id, "living_room.devices.main")
+        self.assertEqual(living_room.devices["main"].device_id, "main")
+        self.assertEqual(kitchen.devices["main"].device_id, "main")
+        self.assertEqual(
+            living_room.devices["main"].device_key, "living_room.devices.main"
+        )
+        self.assertEqual(kitchen.devices["main"].device_key, "kitchen.devices.main")
         self.assertEqual(living_room.devices["main"].ha_entity_id, "light.sofa")
         self.assertIs(living_room.devices["main"].ha_client, self.ha)
         self.adb.connect.assert_awaited_once()

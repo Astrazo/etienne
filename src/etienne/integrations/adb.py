@@ -27,12 +27,12 @@ class UIElement:
 class ADBClient:
     def __init__(
         self,
-        tv_name: str,
+        device_id: str,
         host: str,
         port: int = 5555,
         key_path: str = ".adb/adbkey",
     ):
-        self.tv_name = tv_name
+        self.device_id = device_id
         self.host = host
         self.port = port
         self.device = AdbDeviceTcpAsync(
@@ -64,11 +64,11 @@ class ADBClient:
                 rsa_keys=[signer],
                 auth_timeout_s=10.0,
             )
-            logger.info("Connected to TV {} via ADB", self.tv_name)
+            logger.info("Connected to TV {} via ADB", self.device_id)
         except (TcpTimeoutException, AdbConnectionError) as error:
             logger.warning(
                 "Could not connect to TV {} via ADB: {}",
-                self.tv_name,
+                self.device_id,
                 error,
             )
 

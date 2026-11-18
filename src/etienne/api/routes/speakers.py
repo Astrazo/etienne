@@ -16,14 +16,14 @@ speaker_router = APIRouter(
 )
 
 
-@speaker_router.post("/{name}/play/tracks")
+@speaker_router.post("/{device_id}/play/tracks")
 async def play_tracks(
-    name: str,
+    device_id: str,
     tracks_input: list[TrackInput],
     request: Request,
 ):
     home: Home = request.app.state.home
-    speaker: Speaker = home.speakers[name]
+    speaker: Speaker = home.speakers[device_id]
 
     try:
         await speaker.play_tracks(tracks_input)
@@ -34,22 +34,22 @@ async def play_tracks(
         ) from error
 
     return {
-        "speaker": name,
+        "speaker": device_id,
         "action": "play_tracks",
         "status": "completed",
         "tracks": tracks_input,
     }
 
 
-@speaker_router.post("/{name}/play/album")
+@speaker_router.post("/{device_id}/play/album")
 async def play_album(
-    name: str,
+    device_id: str,
     album: str,
     artist: str,
     request: Request,
 ):
     home: Home = request.app.state.home
-    speaker: Speaker = home.speakers[name]
+    speaker: Speaker = home.speakers[device_id]
     try:
         await speaker.play_album(album_name=album, artist_name=artist)
     except (SpotifyException, RequestException) as error:
@@ -58,17 +58,17 @@ async def play_album(
             detail="Could not play the album through Spotify",
         ) from error
 
-    return {"speaker": name, "action": "play_album", "status": "completed"}
+    return {"speaker": device_id, "action": "play_album", "status": "completed"}
 
 
-@speaker_router.post("/{name}/play/artist")
+@speaker_router.post("/{device_id}/play/artist")
 async def play_artist(
-    name: str,
+    device_id: str,
     artist: str,
     request: Request,
 ):
     home: Home = request.app.state.home
-    speaker: Speaker = home.speakers[name]
+    speaker: Speaker = home.speakers[device_id]
     try:
         await speaker.play_artist(artist_name=artist)
     except (SpotifyException, RequestException) as error:
@@ -77,17 +77,17 @@ async def play_artist(
             detail="Could not play the artist through Spotify",
         ) from error
 
-    return {"speaker": name, "action": "play_artist", "status": "completed"}
+    return {"speaker": device_id, "action": "play_artist", "status": "completed"}
 
 
-@speaker_router.post("/{name}/play/playlist")
+@speaker_router.post("/{device_id}/play/playlist")
 async def play_playlist(
-    name: str,
+    device_id: str,
     playlist: str,
     request: Request,
 ):
     home: Home = request.app.state.home
-    speaker: Speaker = home.speakers[name]
+    speaker: Speaker = home.speakers[device_id]
     try:
         await speaker.play_playlist(playlist_name=playlist)
     except (SpotifyException, RequestException) as error:
@@ -96,17 +96,17 @@ async def play_playlist(
             detail="Could not play the playlist through Spotify",
         ) from error
 
-    return {"speaker": name, "action": "play_playlist", "status": "completed"}
+    return {"speaker": device_id, "action": "play_playlist", "status": "completed"}
 
 
-@speaker_router.post("/{name}/pause")
+@speaker_router.post("/{device_id}/pause")
 async def pause(
-    name: str,
+    device_id: str,
     request: Request,
 ):
     # Use the request object to access home object
     home: Home = request.app.state.home
-    speaker: Speaker = home.speakers[name]
+    speaker: Speaker = home.speakers[device_id]
     try:
         await speaker.pause()
     except (SpotifyException, RequestException) as error:
@@ -115,13 +115,13 @@ async def pause(
             detail="Could not pause playback through Spotify",
         ) from error
 
-    return {"speaker": name, "action": "pause", "status": "completed"}
+    return {"speaker": device_id, "action": "pause", "status": "completed"}
 
 
-@speaker_router.post("/{name}/resume")
-async def resume(name: str, request: Request):
+@speaker_router.post("/{device_id}/resume")
+async def resume(device_id: str, request: Request):
     home: Home = request.app.state.home
-    speaker: Speaker = home.speakers[name]
+    speaker: Speaker = home.speakers[device_id]
 
     try:
         await speaker.resume()
@@ -131,18 +131,18 @@ async def resume(name: str, request: Request):
             detail="Could not resume playback through Spotify",
         ) from error
 
-    return {"speaker": name, "action": "resume", "status": "completed"}
+    return {"speaker": device_id, "action": "resume", "status": "completed"}
 
 
-@speaker_router.post("/{name}/repeat")
+@speaker_router.post("/{device_id}/repeat")
 async def repeat(
-    name: str,
+    device_id: str,
     request: Request,
     state: Literal["track", "context", "off"],
 ):
     # Use the request object to access home object
     home: Home = request.app.state.home
-    speaker: Speaker = home.speakers[name]
+    speaker: Speaker = home.speakers[device_id]
     try:
         await speaker.repeat(state=state)
     except (SpotifyException, RequestException) as error:
@@ -151,14 +151,19 @@ async def repeat(
             detail="Could not set repeat through Spotify",
         ) from error
 
-    return {"speaker": name, "action": "repeat", "status": "completed", "state": state}
+    return {
+        "speaker": device_id,
+        "action": "repeat",
+        "status": "completed",
+        "state": state,
+    }
 
 
-@speaker_router.post("/{name}/shuffle")
-async def shuffle(name: str, request: Request, state: bool):
+@speaker_router.post("/{device_id}/shuffle")
+async def shuffle(device_id: str, request: Request, state: bool):
     # Use the request object to access home object
     home: Home = request.app.state.home
-    speaker: Speaker = home.speakers[name]
+    speaker: Speaker = home.speakers[device_id]
     try:
         await speaker.shuffle(state=state)
     except (SpotifyException, RequestException) as error:
@@ -167,15 +172,20 @@ async def shuffle(name: str, request: Request, state: bool):
             detail="Could not set shuffle through Spotify",
         ) from error
 
-    return {"speaker": name, "action": "shuffle", "status": "completed", "state": state}
+    return {
+        "speaker": device_id,
+        "action": "shuffle",
+        "status": "completed",
+        "state": state,
+    }
 
 
-@speaker_router.post("/{name}/queue/add")
+@speaker_router.post("/{device_id}/queue/add")
 async def add_to_playback_queue(
-    name: str, request: Request, tracks_input: list[TrackInput]
+    device_id: str, request: Request, tracks_input: list[TrackInput]
 ):
     home: Home = request.app.state.home
-    speaker: Speaker = home.speakers[name]
+    speaker: Speaker = home.speakers[device_id]
     try:
         await speaker.add_to_playback_queue(tracks_input)
     except (SpotifyException, RequestException) as error:
@@ -185,20 +195,20 @@ async def add_to_playback_queue(
         ) from error
 
     return {
-        "speaker": name,
+        "speaker": device_id,
         "action": "add_to_playback_queue",
         "status": "completed",
         "tracks": tracks_input,
     }
 
 
-@speaker_router.post("/{name}/queue/navigate")
+@speaker_router.post("/{device_id}/queue/navigate")
 async def navigate_queue(
-    name: str, request: Request, direction: Literal["next", "previous"]
+    device_id: str, request: Request, direction: Literal["next", "previous"]
 ):
     # Use the request object to access home object
     home: Home = request.app.state.home
-    speaker: Speaker = home.speakers[name]
+    speaker: Speaker = home.speakers[device_id]
     try:
         await speaker.navigate_queue(direction)
     except (SpotifyException, RequestException) as error:
@@ -208,7 +218,7 @@ async def navigate_queue(
         ) from error
 
     return {
-        "speaker": name,
+        "speaker": device_id,
         "action": "navigate_queue",
         "status": "completed",
         "direction": direction,
@@ -233,12 +243,12 @@ class TimerInput(BaseModel):
         return self
 
 
-@speaker_router.post("/{name}/timer")
-async def set_timer(name: str, request: Request, timer: TimerInput):
+@speaker_router.post("/{device_id}/timer")
+async def set_timer(device_id: str, request: Request, timer: TimerInput):
 
     # Use the request object to access home object
     home: Home = request.app.state.home
-    speaker: Speaker = home.speakers[name]
+    speaker: Speaker = home.speakers[device_id]
     try:
         await speaker.set_timer(
             action=timer.action,
@@ -252,17 +262,17 @@ async def set_timer(name: str, request: Request, timer: TimerInput):
         ) from error
 
     return {
-        "speaker": name,
+        "speaker": device_id,
         "message": f"set_{timer.action}_timer",
         "status": "scheduled",
         "trigger_time": timer,
     }
 
 
-"""@speaker_router.get("/{name}/status")
-async def get_playback(name: str, request: Request):
+"""@speaker_router.get("/{device_id}/status")
+async def get_playback(device_id: str, request: Request):
     home: Home = request.app.state.home
-    speaker: Speaker = home.speakers[name]
+    speaker: Speaker = home.speakers[device_id]
 
     playback = speaker.get_playback()
 

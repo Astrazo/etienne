@@ -10,7 +10,7 @@ from loguru import logger
 
 
 def save_speaker_timer(
-    db_path: Path, speaker_name: str, action: Literal["resume", "pause"], time: datetime
+    db_path: Path, device_id: str, action: Literal["resume", "pause"], time: datetime
 ) -> None:
     with closing(sqlite3.connect(db_path)) as connection:
         with connection:
@@ -20,7 +20,7 @@ def save_speaker_timer(
                     INSERT INTO speaker_timers (device_id, action, execute_at)
                     VALUES (?, ?, ?)
                     """,
-                    (speaker_name, action, time.timestamp()),
+                    (device_id, action, time.timestamp()),
                 )
             except sqlite3.IntegrityError as error:
                 if error.sqlite_errorcode != sqlite3.SQLITE_CONSTRAINT_UNIQUE:
@@ -28,7 +28,7 @@ def save_speaker_timer(
 
                 # Raise back to the model that there already exists a timer at this time.
                 raise ValueError(
-                    f"A timer already exists for speaker '{speaker_name}' at {time.isoformat()}. "
+                    f"A timer already exists for speaker '{device_id}' at {time.isoformat()}. "
                     "The user needs to remove this timer first, or change the time of their new timer. "
                     "The existing timer is unchanged."
                 ) from error
@@ -37,7 +37,7 @@ def save_speaker_timer(
             "Saved speaker timer {}: {} device {} at {}",
             cursor.lastrowid,
             action,
-            speaker_name,
+            device_id,
             time.isoformat(),
         )
 
@@ -74,7 +74,7 @@ def get_due_speaker_timers(db_path: Path) -> list[tuple[int, str, str]]:
 
 def get_active_timers(
     db_path: Path,
-    speaker_name: str | None = None,
+    device_id: str | None = None,
     action: Literal["resume", "pause"] | None = None,
     time: datetime | None = None,
 ) -> list[tuple[int, str, str, float]]:
@@ -82,9 +82,9 @@ def get_active_timers(
     conditions: list[str] = []
     parameters: list[str | float] = []
 
-    if speaker_name is not None:
+    if device_id is not None:
         conditions.append("device_id = ?")
-        parameters.append(speaker_name)
+        parameters.append(device_id)
 
     if action is not None:
         conditions.append("action = ?")

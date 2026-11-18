@@ -16,8 +16,10 @@ class Light:
         ha_entity_id: str,
         ha_client: HomeAssistantClient,
         display_name: str | None = None,
+        device_key: str | None = None,
     ):
-        self.device_id = device_id
+        self.device_id = device_id  # Config member key, such as "main".
+        self.device_key = device_key or device_id  # Home lookup, such as "kitchen.devices.main".
         self.display_name = display_name or device_id.replace("_", " ").title()
         self.ha_entity_id = ha_entity_id
         self.ha_client = ha_client

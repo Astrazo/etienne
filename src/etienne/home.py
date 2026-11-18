@@ -54,11 +54,12 @@ class Home:
 
     def _init_lights(self):
         for group_id, group_config in self.config.lights.items():
-            for local_id, light_config in group_config.devices.items():
+            for device_id, light_config in group_config.devices.items():
                 # Include the group so IDs like "main" can appear in several rooms.
-                device_id = f"{group_id}.devices.{local_id}"
-                self.lights[device_id] = Light(
+                device_key = f"{group_id}.devices.{device_id}"
+                self.lights[device_key] = Light(
                     device_id=device_id,
+                    device_key=device_key,
                     ha_entity_id=light_config.ha_entity_id,
                     ha_client=self.ha_client,
                     display_name=light_config.display_name,
@@ -87,12 +88,13 @@ class Home:
     def _init_light_groups(self):
         for group_id, group_config in self.config.lights.items():
             devices = {}
-            for local_id in group_config.devices:
-                device_id = f"{group_id}.devices.{local_id}"
-                devices[local_id] = self.lights[device_id]
+            for device_id in group_config.devices:
+                device_key = f"{group_id}.devices.{device_id}"
+                devices[device_id] = self.lights[device_key]
 
             self.light_groups[group_id] = LightGroup(
                 group_id=group_id,
+                ha_client=self.ha_client,
                 devices=devices,
                 display_name=group_config.display_name,
             )
@@ -101,7 +103,7 @@ class Home:
         await self.ha_client.close()
 
     def get_device_map(self) -> dict[str, Device]:
-        """Return the initialized devices by their canonical category:device_id keys."""
+        """Return devices by keys such as lights:kitchen.devices.main."""
         devices = {}
 
         # For each device type
@@ -110,9 +112,9 @@ class Home:
             device_group = getattr(self, device_type)
 
             # For each device identifier and object in the dictionary
-            for device_id, device in device_group.items():
+            for device_key, device in device_group.items():
                 # Create the key (speaker:bedroom) for example
-                key = f"{device_type}:{device_id}"
+                key = f"{device_type}:{device_key}"
 
                 # Create a key pair linking that key to the specific device so functions can be called on it
                 devices[key] = device
@@ -143,8 +145,8 @@ class Home:
 
         # Read each registered light directly from Home Assistant.
         if "lights" in device_types:
-            for device_id, light in self.lights.items():
-                home_state[f"lights:{device_id}"] = await self._read_device_state(light)
+            for device_key, light in self.lights.items():
+                home_state[f"lights:{device_key}"] = await self._read_device_state(light)
 
         # Read each registered TV directly from Home Assistant.
         if "tvs" in device_types:
@@ -207,8 +209,8 @@ class Home:
         devices = self.get_device_map()
         inventory = []
 
-        for device_id, device in devices.items():
-            snapshot = home_state[device_id]
+        for device_key, device in devices.items():
+            snapshot = home_state[device_key]
 
             # Identify the device type and the integration behind it.
             if isinstance(device, Speaker):
@@ -221,7 +223,7 @@ class Home:
                 device_type = "tv"
                 source = "Home Assistant"
             else:
-                raise TypeError(f"Unsupported registered device: {device_id}")
+                raise TypeError(f"Unsupported registered device: {device_key}")
 
             # Lights and TVs report a state label directly. Spotify reports flags.
             state = snapshot.get("state", "unknown")
@@ -237,7 +239,7 @@ class Home:
 
             # Build the card data from this device and its live reading.
             entry = {
-                "id": device_id,
+                "id": device_key,
                 "name": device.display_name,
                 "type": device_type,
                 "state": state,

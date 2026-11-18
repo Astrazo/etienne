@@ -92,7 +92,7 @@ async def handle_device_request(
     ollama_client: OllamaClient,
 ) -> dict[str, Any]:
     """Execute the request using the selected device's tools and return its response."""
-    device_type, device_name = device_key.split(":", maxsplit=1)
+    device_type, selected_device_key = device_key.split(":", maxsplit=1)
     tools = device.get_tools()
 
     model_response = await ollama_client.response_langchain(
@@ -102,7 +102,7 @@ async def handle_device_request(
 
         Selected device:
         - type: {device_type}
-        - name: {device_name}
+        - key: {selected_device_key}
 
         All provided tools are bound specifically to this selected device.
         You do not need to specify the device as a tool argument.
@@ -130,7 +130,7 @@ async def handle_device_request(
 
     return {
         "route": "device",
-        "device": device_name,
+        "device": selected_device_key,
         "device_type": device_type,
         "actions": executed_actions,
         "status": "completed",

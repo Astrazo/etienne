@@ -43,8 +43,8 @@ logger.info("Home Assistant client configured")
 
 # Build ADB Clients
 adb_clients = {
-    name: ADBClient(tv_name=name, host=tv.host, port=tv.port)
-    for name, tv in config.tvs.items()
+    device_id: ADBClient(device_id=device_id, host=tv.host, port=tv.port)
+    for device_id, tv in config.tvs.items()
 }
 logger.info("ADB clients configured")
 

@@ -9,29 +9,29 @@ tv_router = APIRouter(
 )
 
 
-@tv_router.post("/{name}/{app}/open")
+@tv_router.post("/{device_id}/{app}/open")
 async def open_app(
-    name: str,
+    device_id: str,
     app: str,
     request: Request,
 ):
     home: Home = request.app.state.home
-    tv: TV = home.tvs[name]
+    tv: TV = home.tvs[device_id]
 
     await tv.open_app(app)
 
     return {"status": "ok"}
 
 
-@tv_router.post("/{name}/{app}/shows/{show}/play")
+@tv_router.post("/{device_id}/{app}/shows/{show}/play")
 async def play_show(
-    name: str,
+    device_id: str,
     app: str,
     show: str,
     request: Request,
 ):
     home: Home = request.app.state.home
-    tv: TV = home.tvs[name]
+    tv: TV = home.tvs[device_id]
 
     await tv.play_show(
         app=app,

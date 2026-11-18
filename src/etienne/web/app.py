@@ -6,7 +6,8 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
-from nicegui import app as nicegui_app, ui
+from nicegui import app as nicegui_app
+from nicegui import ui
 
 from .chat import build_chat
 from .devices import build_devices
@@ -117,9 +118,7 @@ def register_web(api: FastAPI) -> None:
                 with ui.tab_panel("devices"):
                     refresh_devices = build_devices(api, storage)
                 with ui.tab_panel("schedule"):
-                    tv_names = [
-                        name.replace("_", " ").title() for name in api.state.home.tvs
-                    ]
+                    tv_names = [tv.display_name for tv in api.state.home.tvs.values()]
                     build_schedule(storage, tv_names)
                 with ui.tab_panel("settings"):
                     build_settings(storage, tabs, navigation)

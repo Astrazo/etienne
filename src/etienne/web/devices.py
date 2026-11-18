@@ -22,22 +22,22 @@ def build_devices(
     api: FastAPI, storage: MutableMapping
 ) -> Callable[[], Awaitable[None]]:
     inventory = []
-    selected_id: str | None = None
+    selected_device_key: str | None = None
     loading_settings = False
     pending_power = {}
     error_status = {}
     expanded_groups = {}
 
-    async def open_settings(device_id: str):
-        nonlocal selected_id, loading_settings
+    async def open_settings(device_key: str):
+        nonlocal selected_device_key, loading_settings
         if loading_settings:
             return
-        light = api.state.home.get_device_map().get(device_id)
+        light = api.state.home.get_device_map().get(device_key)
         if not isinstance(light, Light):
             ui.notify("This light is no longer registered.", type="warning")
             return
-        selected_id = device_id
-        options = storage.get("light_settings", {}).get(device_id, {})
+        selected_device_key = device_key
+        options = storage.get("light_settings", {}).get(device_key, {})
         heading.text = f"{light.display_name} settings"
         colour.value = options.get("colour") or ""
         effect.value = options.get("effect") or ""
@@ -53,7 +53,7 @@ def build_devices(
             effects = snapshot.attributes.effect_list or []
             effect.set_autocomplete(effects)
             settings_status.text = ""
-            show_light_observation(device_id, snapshot)
+            show_light_observation(device_key, snapshot)
         except httpx.HTTPError, TimeoutError, ValidationError:
             settings_status.text = (
                 "Couldn’t load available effects. You can still save settings."
@@ -63,7 +63,7 @@ def build_devices(
             save_button.enable()
 
     def save_settings():
-        if selected_id is None or loading_settings:
+        if selected_device_key is None or loading_settings:
             return
         options = {
             "colour": (colour.value or "").strip() or None,
@@ -79,23 +79,23 @@ def build_devices(
             settings_status.text = "Check the colour name and flash option."
             return
         settings = dict(storage.get("light_settings", {}))
-        settings[selected_id] = options
+        settings[selected_device_key] = options
         storage["light_settings"] = settings
         editor.close()
         ui.notify("Light settings saved. They’ll apply next time you switch it on.")
 
-    async def toggle_light(device_id: str, event):
-        if device_id in pending_power:
+    async def toggle_light(device_key: str, event):
+        if device_key in pending_power:
             return
-        light = api.state.home.get_device_map().get(device_id)
+        light = api.state.home.get_device_map().get(device_key)
         if not isinstance(light, Light):
             ui.notify("This light is no longer registered.", type="warning")
             results.refresh()
             return
         turn_on = event.value
-        options = dict(storage.get("light_settings", {}).get(device_id, {}))
-        error_status.pop(device_id, None)
-        pending_power[device_id] = turn_on
+        options = dict(storage.get("light_settings", {}).get(device_key, {}))
+        error_status.pop(device_key, None)
+        pending_power[device_key] = turn_on
         event.sender.disable()
         results.refresh()
         observation = None
@@ -110,16 +110,16 @@ def build_devices(
                 else:
                     await light.turn_off()
         except ValueError:
-            error_status[device_id] = (
+            error_status[device_key] = (
                 "Check this light’s saved settings. No command was sent."
             )
         except httpx.HTTPError, TimeoutError:
-            error_status[device_id] = (
+            error_status[device_key] = (
                 "Couldn’t confirm the command. Check the light before trying again."
             )
         except Exception:  # noqa: BLE001 - report unexpected control failures in the UI
-            logger.exception("Light control failed for {}", light.device_id)
-            error_status[device_id] = (
+            logger.exception("Light control failed for {}", light.device_key)
+            error_status[device_key] = (
                 "The command failed. Check the server logs and the light."
             )
         else:
@@ -133,25 +133,25 @@ def build_devices(
                             break
                         await asyncio.sleep(STATE_POLL_INTERVAL)
             except TimeoutError:
-                error_status[device_id] = (
+                error_status[device_key] = (
                     "Command sent, but the requested state hasn’t been confirmed yet."
                 )
             except httpx.HTTPError, ValidationError:
                 observation = LightState(state="unavailable")
-                error_status[device_id] = (
+                error_status[device_key] = (
                     "Command sent, but the state couldn’t be refreshed."
                 )
         finally:
-            pending_power.pop(device_id, None)
+            pending_power.pop(device_key, None)
             if observation is not None:
-                show_light_observation(device_id, observation)
+                show_light_observation(device_key, observation)
             else:
                 results.refresh()
 
-    def show_light_observation(device_id: str, observation: LightState):
+    def show_light_observation(device_key: str, observation: LightState):
         # Only update this page's rendered observation, never the device object.
         for entry in inventory:
-            if entry["id"] == device_id:
+            if entry["id"] == device_key:
                 entry["state"] = observation.state
                 entry.pop("error", None)
                 break
@@ -233,13 +233,13 @@ def build_devices(
     @ui.refreshable
     def results():
         query = search.value.strip().casefold()
-        inventory_by_id = {}
+        inventory_by_key = {}
         for device in inventory:
-            inventory_by_id[device["id"]] = device
+            inventory_by_key[device["id"]] = device
 
         # Use the actual group membership, not room names guessed from IDs.
         visible_groups = []
-        grouped_light_ids = set()
+        grouped_light_keys = set()
         groups = sorted(
             api.state.home.light_groups.values(),
             key=lambda group: group.display_name.casefold(),
@@ -251,13 +251,13 @@ def build_devices(
                 or query in group.group_id.casefold()
             )
             for light in group.devices.values():
-                device_id = f"lights:{light.device_id}"
-                grouped_light_ids.add(device_id)
-                device = inventory_by_id.get(device_id)
+                device_key = f"lights:{light.device_key}"
+                grouped_light_keys.add(device_key)
+                device = inventory_by_key.get(device_key)
                 if device is None:
                     continue
                 members.append(device)
-                if query in f"{device['name']} {device_id}".casefold():
+                if query in f"{device['name']} {device_key}".casefold():
                     matches = True
             if members and matches:
                 visible_groups.append((group, members))
@@ -265,7 +265,7 @@ def build_devices(
         # Keep speakers, TVs and any lights without a group accessible as before.
         other_devices = []
         for device in inventory:
-            if device["id"] in grouped_light_ids:
+            if device["id"] in grouped_light_keys:
                 continue
             if query in f"{device['name']} {device['id']}".casefold():
                 other_devices.append(device)

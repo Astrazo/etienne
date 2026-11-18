@@ -5,7 +5,7 @@ from laya.agent import Agent, load
 from ...devices import Device
 from ...home import Home
 from .models import (
-    DeviceNameDecision,
+    DeviceKeyDecision,
     DeviceType,
     DeviceTypeDecision,
 )
@@ -33,16 +33,16 @@ class LayaClient:
 
         # Grab available devices from the device type
         devices = getattr(home, device_type_decision.device_type)
-        device_names = list(devices.keys())
+        device_keys = list(devices.keys())
 
-        # Find the correct device name
-        device_name_decision = self._identify_device_name(
-            utterance, device_type_decision.device_type, device_names
+        # Find the correct device key
+        device_key_decision = self._identify_device_key(
+            utterance, device_type_decision.device_type, device_keys
         )
 
         # Return the device
         return devices[
-            device_name_decision.device_name
+            device_key_decision.device_key
         ], device_type_decision.device_type
 
     def _identify_device_type(self, utterance) -> DeviceTypeDecision:
@@ -89,8 +89,8 @@ class LayaClient:
 
         return device_decision
 
-    def _identify_device_name(
-        self, utterance: str, device_type: str, device_names: list[str]
+    def _identify_device_key(
+        self, utterance: str, device_type: str, device_keys: list[str]
     ):
         """Decide what device can handle this request
 
@@ -98,14 +98,14 @@ class LayaClient:
             utterance (str): _description_
         """
         criteria = {
-            name: f"The user is referring to the {name} {device_type}."
-            for name in device_names
+            device_key: f"The user is referring to the {device_key} {device_type}."
+            for device_key in device_keys
         }
 
         result = self.agent.decide(
             state=utterance,
             questions={
-                "device_name": {
+                "device_key": {
                     "type": "choice",
                     "instructions": f"Which {device_type} is the user referring to?",
                     "criteria": criteria,
@@ -117,13 +117,13 @@ class LayaClient:
         print(result)
 
         # Unpack answer
-        answer = result.answers["device_name"]["choice"]  # "speaker"
-        answer_confidence = result.answer_confidence["device_name"]
+        answer = result.answers["device_key"]["choice"]  # "speaker"
+        answer_confidence = result.answer_confidence["device_key"]
         decision_confidence = result.confidence[
-            "device_name"
+            "device_key"
         ]  # 0.79  1 - H(p)/log(k) on this 3-option `choice` field
         probabilities = result.probabilities[
-            "device_name"
+            "device_key"
         ]  # {"speaker": 0.94, "tv": 0.06, "light": 0.0}
 
         """
@@ -138,11 +138,11 @@ class LayaClient:
         result.routing                         # the Router decision, when a Router answered
         """
         # Build device decision
-        device_name_decision = DeviceNameDecision(
-            device_name=answer,
+        device_key_decision = DeviceKeyDecision(
+            device_key=answer,
             answer_confidence=answer_confidence,
             decision_confidence=decision_confidence,
             probabilities=probabilities,
         )
 
-        return device_name_decision
+        return device_key_decision

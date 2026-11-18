@@ -345,7 +345,7 @@ class Speaker:
         active_timers = await asyncio.to_thread(
             get_active_timers,
             db_path=self.db_path,
-            speaker_name=self.device_id,
+            device_id=self.device_id,
             action=action,
             time=trigger_time,
         )
@@ -407,7 +407,7 @@ class Speaker:
         active_timers = await asyncio.to_thread(
             get_active_timers,
             db_path=self.db_path,
-            speaker_name=self.device_id,
+            device_id=self.device_id,
             action=action,
             time=trigger_time,
         )

@@ -25,7 +25,7 @@ class CancelSpeakerTimerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("No timers match", message)
         self.lookup.assert_called_once_with(
             db_path=self.speaker.db_path,
-            speaker_name="bedroom",
+            device_id="bedroom",
             action="pause",
             time=None,
         )

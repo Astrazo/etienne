@@ -24,9 +24,9 @@ class DeviceTypeDecision(BaseModel):
     probabilities: dict[str, float]
 
 
-# Names
-class DeviceNameDecision(BaseModel):
-    device_name: str
+# Device keys
+class DeviceKeyDecision(BaseModel):
+    device_key: str
     answer_confidence: float
     decision_confidence: float
     probabilities: dict[str, float]
@@ -36,4 +36,4 @@ class DeviceNameDecision(BaseModel):
 class ObjectSelection(BaseModel):
     utterance: str
     device_decision: DeviceTypeDecision
-    name_decision: DeviceNameDecision
+    name_decision: DeviceKeyDecision

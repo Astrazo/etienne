@@ -62,6 +62,9 @@ class LightState(BaseModel):
     last_updated: datetime | None = None
     last_reported: datetime | None = None
 
+class LightGroupState(BaseModel):
+    devices: dict[str, LightState]
+
 
 class TvAttributes(BaseModel):
     """TV details reported by its HA integration; unsupported fields stay absent."""
