@@ -19,6 +19,7 @@ class Programme(BaseModel):
 
     @model_validator(mode="after")
     def check_times(self):
+        # Time strings use HH:MM, so they can be compared directly within one day.
         if self.end <= self.start:
             raise ValueError(
                 "End time must follow start time. Split overnight programmes into two entries."
@@ -27,11 +28,21 @@ class Programme(BaseModel):
 
 
 def programmes(storage: MutableMapping) -> list[Programme]:
-    return [Programme.model_validate(entry) for entry in storage.get("schedule", [])]
+    # Validate saved entries before the UI uses them.
+    entries = []
+    for entry in storage.get("schedule", []):
+        entries.append(Programme.model_validate(entry))
+    return entries
 
 
 def save_programme(storage: MutableMapping, entry: Programme) -> None:
-    remaining = [other for other in programmes(storage) if other.id != entry.id]
+    # Exclude the old version of the entry when editing an existing programme.
+    remaining = []
+    for other in programmes(storage):
+        if other.id != entry.id:
+            remaining.append(other)
+
+    # Reject overlapping programmes on the same TV before saving anything.
     for other in remaining:
         if (
             other.tv.casefold() == entry.tv.casefold()
@@ -41,7 +52,12 @@ def save_programme(storage: MutableMapping, entry: Programme) -> None:
             raise ValueError(
                 "This television already has a programme in that time slot."
             )
-    storage["schedule"] = [other.model_dump() for other in [*remaining, entry]]
+    # Store plain dictionaries for NiceGUI's persistent storage.
+    saved_entries = []
+    for other in remaining:
+        saved_entries.append(other.model_dump())
+    saved_entries.append(entry.model_dump())
+    storage["schedule"] = saved_entries
 
 
 async def import_browser_data(storage: MutableMapping) -> str:
@@ -50,6 +66,7 @@ async def import_browser_data(storage: MutableMapping) -> str:
     Keep the original browser data intact. The fragment read also preserves old
     /index#devices-style bookmarks when opening the new interface.
     """
+    # Read the old browser storage and any tab named in the URL fragment.
     legacy = await ui.run_javascript("""
         const result = {tab: location.hash.slice(1)};
         for (const key of ['etienne.navigation', 'etienne.schedule', 'etienne.displayName']) {
@@ -58,19 +75,21 @@ async def import_browser_data(storage: MutableMapping) -> str:
         }
         return result;
     """)
+
+    # Import old preferences only once, without replacing newer server values.
     if not storage.get("legacy_imported"):
         navigation = legacy.get("etienne.navigation")
         if isinstance(navigation, dict):
-            storage.setdefault(
-                "navigation",
-                {
-                    key: navigation.get(key) is not False
-                    for key in ("chat", "devices", "schedule", "settings")
-                },
-            )
+            preferences = {}
+            for key in ("chat", "devices", "schedule", "settings"):
+                preferences[key] = navigation.get(key) is not False
+            storage.setdefault("navigation", preferences)
+
         name = legacy.get("etienne.displayName")
         if isinstance(name, str):
             storage.setdefault("display_name", name[:40])
+
+        # Validate old schedule entries individually so invalid entries can be skipped.
         entries = legacy.get("etienne.schedule")
         if isinstance(entries, list) and "schedule" not in storage:
             imported = {}
@@ -85,8 +104,11 @@ async def import_browser_data(storage: MutableMapping) -> str:
                     )
             storage["schedule"] = imported.get("schedule", [])
         storage["legacy_imported"] = True
-    storage.setdefault(
-        "navigation", {key: True for key in ("chat", "devices", "schedule", "settings")}
-    )
+
+    # Supply defaults for browsers without saved preferences or a schedule.
+    default_navigation = {}
+    for key in ("chat", "devices", "schedule", "settings"):
+        default_navigation[key] = True
+    storage.setdefault("navigation", default_navigation)
     storage.setdefault("schedule", [])
     return legacy.get("tab", "chat")

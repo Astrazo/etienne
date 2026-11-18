@@ -25,8 +25,12 @@ def configure_theme():
 
 def storage_secret() -> str:
     """Keep session cookies valid across restarts without requiring extra setup."""
-    if configured := os.getenv("ETIENNE_UI_SECRET"):
+    # Use an explicitly configured secret when one is available.
+    configured = os.getenv("ETIENNE_UI_SECRET")
+    if configured:
         return configured
+
+    # Otherwise reuse the local key, creating it on the first run.
     path = Path("data/ui-session.key")
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -46,10 +50,13 @@ def register_web(api: FastAPI) -> None:
     @ui.page("/", title="Etienne")
     @ui.page("/login", title="Etienne")
     async def welcome():
+        # Load the theme and this browser's saved preferences.
         configure_theme()
         await ui.context.client.connected()
         storage = nicegui_app.storage.user
         await import_browser_data(storage)
+
+        # Welcome page and optional display name.
         with ui.column().classes("login"):
             ui.image("/ui/logo.png").classes("login-logo").props(
                 "fit=contain no-spinner alt=Etienne"
@@ -66,6 +73,7 @@ def register_web(api: FastAPI) -> None:
             )
 
             def enter():
+                # Save the name before opening the workspace.
                 storage["display_name"] = (name.value or "").strip()[:40]
                 ui.navigate.to("/index")
 
@@ -77,6 +85,7 @@ def register_web(api: FastAPI) -> None:
 
     @ui.page("/index", title="Etienne")
     async def workspace():
+        # Restore preferences, keeping Settings available to restore hidden tabs.
         configure_theme()
         await ui.context.client.connected()
         storage = nicegui_app.storage.user
@@ -85,7 +94,12 @@ def register_web(api: FastAPI) -> None:
         preferences["settings"] = True
         storage["navigation"] = preferences
         if requested_tab not in preferences or not preferences[requested_tab]:
-            requested_tab = next(key for key, visible in preferences.items() if visible)
+            for key, visible in preferences.items():
+                if visible:
+                    requested_tab = key
+                    break
+
+        # Sidebar branding, navigation, and the current display name.
         with ui.row().classes("shell"):
             with ui.column().classes("sidebar"):
                 with ui.link(target="/index").classes("brand"):
@@ -112,25 +126,32 @@ def register_web(api: FastAPI) -> None:
                     icon="logout",
                     on_click=lambda: ui.navigate.to("/login"),
                 ).props("flat no-caps").classes("profile")
+            # Build the content for each navigation tab.
             with ui.tab_panels(navigation, animated=False).classes("pages"):
                 with ui.tab_panel("chat"):
                     build_chat(api)
                 with ui.tab_panel("devices"):
                     refresh_devices = build_devices(api, storage)
                 with ui.tab_panel("schedule"):
-                    tv_names = [tv.display_name for tv in api.state.home.tvs.values()]
+                    tv_names = []
+                    for tv in api.state.home.tvs.values():
+                        tv_names.append(tv.display_name)
                     build_schedule(storage, tv_names)
                 with ui.tab_panel("settings"):
                     build_settings(storage, tabs, navigation)
 
         async def tab_changed(event):
+            # Read fresh device states whenever the Devices tab is opened.
             if event.value == "devices":
                 await refresh_devices()
 
         navigation.on_value_change(tab_changed)
+
+        # A direct visit to Devices also needs its initial state read.
         if navigation.value == "devices":
             await refresh_devices()
 
+    # Mount NiceGUI on the existing FastAPI application.
     ui.run_with(
         api,
         title="Etienne",

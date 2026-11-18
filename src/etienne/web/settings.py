@@ -9,13 +9,20 @@ def build_settings(
     storage: MutableMapping, tabs: dict[str, ui.tab], navigation: ui.tabs
 ) -> None:
     def change_tab(key: str, enabled: bool):
+        # Save a new preferences dictionary so NiceGUI updates bound tabs.
         preferences = dict(storage["navigation"])
         preferences[key] = enabled
         preferences["settings"] = True
         storage["navigation"] = preferences
-        if not preferences.get(navigation.value, True):
-            navigation.value = next(name for name in tabs if preferences[name])
 
+        # Move to the first visible tab if the current tab was just hidden.
+        if not preferences.get(navigation.value, True):
+            for tab_key in tabs:
+                if preferences[tab_key]:
+                    navigation.value = tab_key
+                    break
+
+    # Page heading and sidebar visibility controls.
     ui.label("Settings").classes("page-title")
     ui.label("Keep what you use.").classes("muted mb-6")
     with ui.column().classes("settings"):
@@ -26,7 +33,9 @@ def build_settings(
                 switch = ui.switch(
                     tab.props["label"],
                     value=storage["navigation"].get(key, True),
-                    on_change=lambda event, name=key: change_tab(name, event.value),
+                    on_change=lambda event, tab_key=key: change_tab(
+                        tab_key, event.value
+                    ),
                 )
                 if key == "settings":
                     switch.value = True
@@ -34,6 +43,7 @@ def build_settings(
                     ui.label("Always visible so you can bring tabs back.").classes(
                         "muted text-xs"
                     )
+        # Explain where preferences are stored and what preview access allows.
         ui.label(
             "Preferences and plans are saved on this server for this browser’s anonymous session. They aren’t shared with other browsers."
         ).classes("notice mt-6")
