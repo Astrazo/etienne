@@ -44,10 +44,15 @@ async def process_utterance(
           such as a greeting, observation, reaction, or instruction to perform an action.
         Merely mentioning a factual topic does not make a statement a question.
 
-        For device selection, an explicit name takes priority. Otherwise use
-        home context when it clearly identifies the device, such as the active
-        Spotify speaker for "pause the music". Never guess a device. General
-        questions about how devices work use the general route.
+        For lighting requests, select an explicitly identified individual light
+        when one is specified. Otherwise, if the room is clearly identified
+        and has a light group, select that group—even if it contains only
+        one light.
+
+        Use home context when it clearly identifies the target, such as the
+        active Spotify speaker for "pause the music". If the target remains
+        unclear, ask for clarification. General questions about how devices
+        work use the general route.
 
         Examples:
         - "It's so sunny today!": route "general", query_classification "discussion".
@@ -64,8 +69,6 @@ async def process_utterance(
         """,
         format=QueryClassification,
     )
-    print()
-    print(home_context)
 
     # Route classification
     match classifier_resp.route:

@@ -65,10 +65,8 @@ class HomeInitialisationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(living_room.group_id, "living_room")
         self.assertEqual(living_room.devices["main"].device_id, "main")
         self.assertEqual(kitchen.devices["main"].device_id, "main")
-        self.assertEqual(
-            living_room.devices["main"].device_key, "living_room.devices.main"
-        )
-        self.assertEqual(kitchen.devices["main"].device_key, "kitchen.devices.main")
+        self.assertFalse(hasattr(living_room.devices["main"], "device_key"))
+        self.assertFalse(hasattr(kitchen.devices["main"], "device_key"))
         self.assertEqual(living_room.devices["main"].ha_entity_id, "light.sofa")
         self.assertIs(living_room.devices["main"].ha_client, self.ha)
         self.adb.connect.assert_awaited_once()
@@ -88,7 +86,7 @@ class HomeInitialisationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(tv.adb_client, self.adb)
 
     async def test_inventory_shows_display_names_and_keeps_unique_device_keys(self):
-        inventory = await self.home.get_device_inventory()
+        inventory = await self.home.get_device_display_data()
         names = {}
         for device in inventory:
             names[device["id"]] = device["name"]

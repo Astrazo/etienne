@@ -108,7 +108,7 @@ class TVStateTests(unittest.IsolatedAsyncioTestCase):
         )
         home = Home(self.ha, Mock(), {"living_room": self.adb}, config)
         home._init_tvs()
-        inventory = await home.get_device_inventory()
+        inventory = await home.get_device_display_data()
 
         self.assertEqual(inventory[0]["source"], "Home Assistant")
         self.assertEqual(inventory[0]["state"], "on")

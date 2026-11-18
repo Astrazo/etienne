@@ -59,7 +59,6 @@ class Home:
                 device_key = f"{group_id}.devices.{device_id}"
                 self.lights[device_key] = Light(
                     device_id=device_id,
-                    device_key=device_key,
                     ha_entity_id=light_config.ha_entity_id,
                     ha_client=self.ha_client,
                     display_name=light_config.display_name,
@@ -107,7 +106,7 @@ class Home:
         devices = {}
 
         # For each device type
-        for device_type in ("speakers", "tvs", "lights"):
+        for device_type in ("speakers", "tvs", "lights", "light_groups"):
             # Grab the dictionary lookup for each this device type
             device_group = getattr(self, device_type)
 
@@ -203,13 +202,18 @@ class Home:
                 "error": "Could not read the device's current state.",
             }
 
-    async def get_device_inventory(self) -> list[dict]:
+    async def get_device_display_data(self) -> list[dict]:
         """Read live state and build the device cards returned to the UI and API."""
         home_state = await self.get_home_state()
         devices = self.get_device_map()
         inventory = []
 
         for device_key, device in devices.items():
+
+            # Skip light groups as they don't contribute to inventory
+            if isinstance(device, LightGroup):
+                continue
+
             snapshot = home_state[device_key]
 
             # Identify the device type and the integration behind it.

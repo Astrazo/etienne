@@ -27,6 +27,8 @@ def build_devices(
     pending_power = {}
     error_status = {}
     expanded_groups = {}
+    pending_groups = {}
+    group_errors = {}
 
     async def open_settings(device_key: str):
         nonlocal selected_device_key, loading_settings
@@ -84,7 +86,7 @@ def build_devices(
         editor.close()
         ui.notify("Light settings saved. They’ll apply next time you switch it on.")
 
-    async def toggle_light(device_key: str, event):
+    async def set_light_power(device_key: str, turn_on: bool):
         if device_key in pending_power:
             return
         light = api.state.home.get_device_map().get(device_key)
@@ -92,11 +94,9 @@ def build_devices(
             ui.notify("This light is no longer registered.", type="warning")
             results.refresh()
             return
-        turn_on = event.value
         options = dict(storage.get("light_settings", {}).get(device_key, {}))
         error_status.pop(device_key, None)
         pending_power[device_key] = turn_on
-        event.sender.disable()
         results.refresh()
         observation = None
         try:
@@ -118,7 +118,7 @@ def build_devices(
                 "Couldn’t confirm the command. Check the light before trying again."
             )
         except Exception:  # noqa: BLE001 - report unexpected control failures in the UI
-            logger.exception("Light control failed for {}", light.device_key)
+            logger.exception("Light control failed for {}", device_key)
             error_status[device_key] = (
                 "The command failed. Check the server logs and the light."
             )
@@ -157,9 +157,80 @@ def build_devices(
                 break
         results.refresh()
 
+    async def set_light_group_power(group_id: str, turn_on: bool):
+        group = api.state.home.light_groups.get(group_id)
+        if group is None or not group.devices or group_id in pending_groups:
+            return
+
+        device_keys = []
+        for device_id in group.devices:
+            device_key = f"lights:{group_id}.devices.{device_id}"
+            if device_key in pending_power:
+                return
+            device_keys.append(device_key)
+
+        # Lock member tiles while the group command is being confirmed.
+        pending_groups[group_id] = turn_on
+        group_errors.pop(group_id, None)
+        for device_key in device_keys:
+            pending_power[device_key] = turn_on
+            error_status.pop(device_key, None)
+        results.refresh()
+
+        observation = None
+        try:
+            async with asyncio.timeout(15):
+                if turn_on:
+                    await group.turn_on()
+                else:
+                    await group.turn_off()
+        except Exception:  # noqa: BLE001 - keep group control failures visible in the UI
+            logger.exception("Light group control failed for {}", group_id)
+            group_errors[group_id] = (
+                "Couldn’t confirm the command. Check the lights before trying again."
+            )
+        else:
+            try:
+                expected_state = "on" if turn_on else "off"
+                async with asyncio.timeout(STATE_CONFIRMATION_TIMEOUT):
+                    while True:
+                        observation = await group.get_state()
+                        confirmed = True
+                        for state in observation.devices.values():
+                            if state.state != expected_state:
+                                confirmed = False
+                                break
+                        if confirmed:
+                            break
+                        await asyncio.sleep(STATE_POLL_INTERVAL)
+            except TimeoutError:
+                group_errors[group_id] = (
+                    "Command sent, but not all lights have confirmed the requested state yet."
+                )
+            except httpx.HTTPError, ValidationError:
+                group_errors[group_id] = (
+                    "Command sent, but the light states couldn’t be refreshed."
+                )
+        finally:
+            pending_groups.pop(group_id, None)
+            for device_key in device_keys:
+                pending_power.pop(device_key, None)
+
+            # Show observed states, including mixed results after a timeout.
+            if observation is not None:
+                states_by_key = {}
+                for device_id, state in observation.devices.items():
+                    states_by_key[f"lights:{group_id}.devices.{device_id}"] = state
+                for entry in inventory:
+                    state = states_by_key.get(entry["id"])
+                    if state is not None:
+                        entry["state"] = state.state
+                        entry.pop("error", None)
+            results.refresh()
+
     with ui.dialog() as editor, ui.card().classes("light-editor"):
         with ui.row().classes("w-full justify-between items-center"):
-            heading = ui.label().classes("text-xl")
+            heading = ui.label().classes("text-xl").mark("light-settings-title")
             ui.button(icon="close", on_click=editor.close).props(
                 "flat round aria-label=Close"
             )
@@ -192,43 +263,160 @@ def build_devices(
                 "unelevated no-caps text-color=black"
             )
 
+    def toggle_group_details(group_id: str):
+        expanded_groups[group_id] = not expanded_groups.get(group_id, False)
+        results.refresh()
+
     def device_card(device: dict):
-        with ui.card().classes("device-card"):
-            with ui.row().classes("w-full justify-between items-center"):
-                icon = {
-                    "light": "lightbulb_outline",
-                    "speaker": "speaker",
-                    "tv": "tv",
-                    "media_player": "tv",
-                }.get(device["type"], "devices")
-                ui.icon(icon, size="24px").classes("muted")
-                ui.label(device["state"].replace("_", " ")).classes(
-                    "muted text-xs"
-                ).mark(f"device-state-{device['id']}")
-            ui.label(device["name"]).classes("text-base mt-3")
-            ui.label(
-                f"{device['type'].replace('_', ' ')} · {device['source']}"
-            ).classes("muted text-xs")
-            if device["type"] == "light":
-                with ui.row().classes("w-full justify-between items-center mt-2"):
-                    power = ui.switch(
-                        "Power",
-                        value=pending_power.get(device["id"], device["state"] == "on"),
-                        on_change=partial(toggle_light, device["id"]),
-                    ).mark(f"power-{device['id']}")
-                    if device["id"] in pending_power:
-                        power.disable()
+        if device["type"] != "light":
+            with ui.element("div").classes("device-tile"):
+                ui.icon("speaker" if device["type"] == "speaker" else "tv", size="24px")
+                with ui.column().classes("tile-copy"):
+                    ui.label(device["name"]).classes("tile-title")
+                    ui.label(device["state"].replace("_", " ")).classes("tile-state")
+            return
+
+        device_key = device["id"]
+        busy = device_key in pending_power
+        is_on = pending_power.get(device_key, device["state"] == "on")
+        state_text = device["state"]
+        if busy:
+            state_text = "Turning on…" if is_on else "Turning off…"
+
+        with ui.element("div").classes("light-tile is-on" if is_on else "light-tile"):
+            with ui.row().classes("tile-main-row"):
+                # The settings button is a sibling, so it cannot trigger power.
+                with (
+                    ui.button(
+                        on_click=partial(set_light_power, device_key, not is_on),
+                        color=None,
+                    )
+                    .props("flat no-caps")
+                    .classes("tile-action")
+                    .mark(f"power-{device_key}") as power,
+                    ui.row().classes("tile-content"),
+                ):
+                    ui.icon("lightbulb" if is_on else "lightbulb_outline", size="24px")
+                    with ui.column().classes("tile-copy"):
+                        ui.label(device["name"]).classes("tile-title")
+                        ui.label(state_text).classes("tile-state").mark(
+                            f"device-state-{device_key}"
+                        )
+                power.props["aria-label"] = (
+                    f"Turn {'off' if is_on else 'on'} {device['name']}"
+                )
+                power.props["aria-pressed"] = str(is_on).lower()
+                power.props["aria-busy"] = str(busy).lower()
+                if busy:
+                    power.disable()
+                settings_button = (
                     ui.button(
                         icon="settings",
-                        on_click=partial(open_settings, device["id"]),
-                    ).props("flat round aria-label='Light settings'").tooltip(
-                        "Light settings"
-                    ).mark(f"settings-{device['id']}")
-                message = error_status.get(device["id"]) or device.get("error")
-                if message:
-                    ui.label(message).classes("error text-xs").props("role=alert").mark(
-                        f"light-error-{device['id']}"
+                        on_click=partial(open_settings, device_key),
+                        color=None,
                     )
+                    .props("flat round")
+                    .classes("tile-accessory")
+                    .tooltip(f"{device['name']} settings")
+                    .mark(f"settings-{device_key}")
+                )
+                settings_button.props["aria-label"] = f"{device['name']} settings"
+
+            message = error_status.get(device_key) or device.get("error")
+            if message:
+                ui.label(message).classes("error tile-error").props("role=alert").mark(
+                    f"light-error-{device_key}"
+                )
+
+    def light_group_card(group, members: list[dict]):
+        on_count = 0
+        unknown_count = 0
+        for device in members:
+            if device["state"] == "on":
+                on_count += 1
+            elif device["state"] != "off":
+                unknown_count += 1
+        summary = f"{on_count} of {len(members)} lights on"
+        if unknown_count:
+            summary += f" · {unknown_count} unknown or unavailable"
+        busy = group.group_id in pending_groups
+        for device in members:
+            if device["id"] in pending_power:
+                busy = True
+
+        expanded = expanded_groups.get(group.group_id, False)
+        is_on = pending_groups.get(group.group_id, on_count > 0)
+        state_text = summary
+        if group.group_id in pending_groups:
+            state_text = "Turning on…" if is_on else "Turning off…"
+
+        with (
+            ui.element("div")
+            .classes("light-group")
+            .mark(f"light-group-{group.group_id}")
+        ):
+            with ui.element("div").classes(
+                "light-tile is-on" if is_on else "light-tile"
+            ):
+                with ui.row().classes("tile-main-row"):
+                    with (
+                        ui.button(
+                            on_click=partial(
+                                set_light_group_power,
+                                group.group_id,
+                                not is_on,
+                            ),
+                            color=None,
+                        )
+                        .props("flat no-caps")
+                        .classes("tile-action")
+                        .mark(f"group-power-{group.group_id}") as power,
+                        ui.row().classes("tile-content"),
+                    ):
+                        ui.icon(
+                            "lightbulb" if is_on else "lightbulb_outline",
+                            size="24px",
+                        )
+                        with ui.column().classes("tile-copy"):
+                            ui.label(group.display_name).classes("tile-title")
+                            ui.label(state_text).classes("tile-state").mark(
+                                f"group-state-{group.group_id}"
+                            )
+                    power.props["aria-label"] = (
+                        f"Turn {'off' if is_on else 'on'} {group.display_name}"
+                    )
+                    power.props["aria-pressed"] = str(is_on).lower()
+                    power.props["aria-busy"] = str(busy).lower()
+                    if busy:
+                        power.disable()
+
+                    expand_button = (
+                        ui.button(
+                            icon="expand_less" if expanded else "expand_more",
+                            on_click=partial(toggle_group_details, group.group_id),
+                            color=None,
+                        )
+                        .props("flat round")
+                        .classes("tile-accessory group-expand")
+                        .mark(f"group-expand-{group.group_id}")
+                    )
+                    expand_button.props["aria-label"] = (
+                        f"{'Hide' if expanded else 'Show'} individual lights in {group.display_name}"
+                    )
+                    expand_button.props["aria-expanded"] = str(expanded).lower()
+
+                if group.group_id in group_errors:
+                    ui.label(group_errors[group.group_id]).classes(
+                        "error tile-error"
+                    ).props("role=alert").mark(f"group-error-{group.group_id}")
+
+            if expanded:
+                with ui.element("div").classes("group-members"):
+                    for device in sorted(
+                        members,
+                        key=lambda device: device["name"].casefold(),
+                    ):
+                        device_card(device)
 
     @ui.refreshable
     def results():
@@ -237,98 +425,86 @@ def build_devices(
         for device in inventory:
             inventory_by_key[device["id"]] = device
 
-        # Use the actual group membership, not room names guessed from IDs.
-        visible_groups = []
-        grouped_light_keys = set()
+        rooms = []
+        assigned_keys = set()
         groups = sorted(
             api.state.home.light_groups.values(),
             key=lambda group: group.display_name.casefold(),
         )
         for group in groups:
-            members = []
-            matches = (
-                query in group.display_name.casefold()
-                or query in group.group_id.casefold()
+            room_name = group.display_name.removesuffix(" Lights")
+            room_matches = (
+                query in room_name.casefold() or query in group.group_id.casefold()
             )
-            for light in group.devices.values():
-                device_key = f"lights:{light.device_key}"
-                grouped_light_keys.add(device_key)
+            group_matches = room_matches or query in group.display_name.casefold()
+            members = []
+
+            # Light membership comes from the configured group objects.
+            for device_id in group.devices:
+                device_key = f"lights:{group.group_id}.devices.{device_id}"
+                assigned_keys.add(device_key)
                 device = inventory_by_key.get(device_key)
                 if device is None:
                     continue
                 members.append(device)
                 if query in f"{device['name']} {device_key}".casefold():
-                    matches = True
-            if members and matches:
-                visible_groups.append((group, members))
+                    group_matches = True
 
-        # Keep speakers, TVs and any lights without a group accessible as before.
+            # Speaker/TV config IDs identify their room when they match a group ID.
+            room_devices = []
+            for device in inventory:
+                if device["type"] not in ("speaker", "tv"):
+                    continue
+                device_id = device["id"].partition(":")[2]
+                if device_id != group.group_id:
+                    continue
+                assigned_keys.add(device["id"])
+                if (
+                    room_matches
+                    or query in f"{device['name']} {device['id']}".casefold()
+                ):
+                    room_devices.append(device)
+
+            visible_members = members if group_matches else []
+            if visible_members or room_devices:
+                rooms.append(
+                    (group.group_id, room_name, group, visible_members, room_devices)
+                )
+
         other_devices = []
         for device in inventory:
-            if device["id"] in grouped_light_keys:
+            if device["id"] in assigned_keys:
                 continue
             if query in f"{device['name']} {device['id']}".casefold():
                 other_devices.append(device)
 
-        if not visible_groups and not other_devices:
+        if not rooms and not other_devices:
             ui.label("No matching devices.").classes("muted py-8")
             return
 
-        if visible_groups:
-            ui.label("Lights").classes("text-lg mt-4 mb-3").props(
-                "role=heading aria-level=2"
-            )
-            with ui.element("div").classes("light-group-grid"):
-                for group, members in visible_groups:
-                    on_count = 0
-                    unknown_count = 0
-                    for device in members:
-                        if device["state"] == "on":
-                            on_count += 1
-                        elif device["state"] != "off":
-                            unknown_count += 1
-                    summary = f"{on_count} of {len(members)} lights on"
-                    if unknown_count:
-                        summary += f" · {unknown_count} unknown or unavailable"
-                    with (
-                        ui.expansion(
-                            group.display_name,
-                            caption=summary,
-                            icon="lightbulb_outline",
-                            value=expanded_groups.get(
-                                group.group_id, len(members) == 1
-                            ),
-                            on_value_change=lambda event, group_id=group.group_id: (
-                                expanded_groups.update({group_id: event.value})
-                            ),
-                        )
-                        .classes("light-group")
-                        .mark(f"light-group-{group.group_id}")
+        for room_id, room_name, group, members, room_devices in rooms:
+            with ui.element("section").classes("w-full mb-5").mark(f"room-{room_id}"):
+                ui.label(room_name).classes("text-lg mt-4 mb-3").props(
+                    "role=heading aria-level=2"
+                )
+                with ui.element("div").classes("light-group-grid"):
+                    if members:
+                        light_group_card(group, members)
+                    for device in sorted(
+                        room_devices, key=lambda device: device["name"].casefold()
                     ):
-                        for device in sorted(
-                            members, key=lambda device: device["name"].casefold()
-                        ):
-                            device_card(device)
+                        device_card(device)
 
-        for device_type, title in (
-            ("light", "Other lights" if visible_groups else "Lights"),
-            ("speaker", "Speakers"),
-            ("tv", "TVs"),
-        ):
-            devices = []
-            for device in other_devices:
-                if device["type"] == device_type:
-                    devices.append(device)
-            if not devices:
-                continue
-            ui.label(title).classes("text-lg mt-4 mb-3").props(
-                "role=heading aria-level=2"
-            )
-            with ui.element("div").classes("device-grid"):
-                for device in sorted(
-                    devices, key=lambda device: device["name"].casefold()
-                ):
-                    device_card(device)
+        if other_devices:
+            with ui.element("section").classes("w-full mb-5").mark("room-other"):
+                ui.label("Other devices").classes("text-lg mt-4 mb-3").props(
+                    "role=heading aria-level=2"
+                )
+                with ui.element("div").classes("device-grid"):
+                    for device in sorted(
+                        other_devices, key=lambda device: device["name"].casefold()
+                    ):
+                        device_card(device)
 
     async def refresh():
         nonlocal inventory
@@ -348,9 +524,6 @@ def build_devices(
         refresh_button = ui.button(
             "Refresh states", icon="refresh", on_click=refresh
         ).props("outline no-caps")
-    ui.label(
-        "Registered devices with freshly requested states. Use the switch for power and the gear for turn-on settings."
-    ).classes("notice")
     with ui.row().classes("w-full items-center my-4"):
         search = (
             ui.input(placeholder="Search devices…", on_change=lambda: results.refresh())
