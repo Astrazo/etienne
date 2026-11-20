@@ -69,9 +69,25 @@ class TV:
 
     async def play_show(
         self,
-        app: str,
-        show: str,
+        app_name: str,
+        show_name: str,
+        season: int | None = None,
+        episode: int | None = None
     ) -> None:
+
+        # COnvert app to package
+        package = self.APP_PACKAGES[app_name]
+
+        result = await self.adb_client.play_show(
+            package=package,
+            show=show_name,
+            season=season,
+            episode=episode,
+        )
+        print(result)
+        return
+
+        
         await self.open_app(app)
 
         await asyncio.sleep(2)

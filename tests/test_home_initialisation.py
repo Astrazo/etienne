@@ -95,4 +95,15 @@ class HomeInitialisationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(names["lights:kitchen.devices.main"], "Kitchen Ceiling")
         self.assertEqual(names["speakers:living_room"], "Lounge Speaker")
         self.assertEqual(names["tvs:living_room"], "Lounge TV")
-        self.assertEqual(set(names), set(self.home.get_device_map()))
+        # Display data contains individual devices; groups reference those devices.
+        self.assertEqual(
+            set(names),
+            {
+                "lights:living_room.devices.main",
+                "lights:living_room.devices.second",
+                "lights:kitchen.devices.main",
+                "speakers:living_room",
+                "tvs:living_room",
+            },
+        )
+        self.assertEqual(len(inventory), len(names))

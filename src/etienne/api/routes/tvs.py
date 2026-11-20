@@ -29,13 +29,18 @@ async def play_show(
     app: str,
     show: str,
     request: Request,
+    season: int | None = None,
+    episode: int | None = None,
+   
 ):
     home: Home = request.app.state.home
     tv: TV = home.tvs[device_id]
 
-    await tv.play_show(
-        app=app,
-        show=show,
+    resp = await tv.play_show(
+        app_name=app,
+        show_name=show,
+        season=season,
+        episode=episode
     )
 
-    return {"status": "ok"}
+    return resp

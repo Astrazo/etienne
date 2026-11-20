@@ -1,3 +1,4 @@
+import shlex
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
@@ -81,6 +82,43 @@ class ADBClient:
     async def open_app(self, package: str) -> None:
         """Open an Android app by package name."""
         await self.shell(f"monkey -p {package} 1")
+
+    async def play_show(
+        self,
+        package: str,
+        show: str,
+        season: int | None = None,
+        episode: int | None = None,
+    ) -> str:
+        """Request playback in an app that supports Android video search.
+
+        Season and episode are included in the search text; the app decides
+        how to interpret them. Return Android's output for troubleshooting,
+        since launching an activity does not confirm playback started.
+        """
+        # Validate the request before sending anything to the TV.
+        if not package.strip() or not show.strip():
+            raise ValueError("Package and show must not be empty")
+        if season is not None and season < 1:
+            raise ValueError("Season must be at least 1")
+        if episode is not None and episode < 1:
+            raise ValueError("Episode must be at least 1")
+
+        # Build the free-text query understood by the receiving app.
+        query = show.strip()
+        if season is not None:
+            query += f" season {season}"
+        if episode is not None:
+            query += f" episode {episode}"
+
+        # Quote arguments for the Android shell, which uses POSIX syntax.
+        command = (
+            "am start -W"
+            " -a android.media.action.VIDEO_PLAY_FROM_SEARCH"
+            f" -p {shlex.quote(package.strip())}"
+            f" --es query {shlex.quote(query)}"
+        )
+        return await self.shell(command)
 
     async def get_ui_xml(self) -> str:
         """Get raw UI XML from the current screen."""

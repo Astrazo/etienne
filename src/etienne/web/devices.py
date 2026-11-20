@@ -559,7 +559,7 @@ def build_devices(
         refresh_button.disable()
         loading.text = "Reading current device states…"
         try:
-            inventory = await api.state.home.get_device_inventory()
+            inventory = await api.state.home.get_device_display_data()
             results.refresh()
         finally:
             loading.text = ""
